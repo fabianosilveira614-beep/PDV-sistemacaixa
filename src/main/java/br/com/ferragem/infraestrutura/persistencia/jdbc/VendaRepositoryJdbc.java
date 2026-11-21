@@ -23,6 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Vendas no PostgreSQL (tabelas {@code venda} e {@code item_venda}).
@@ -100,6 +101,39 @@ public class VendaRepositoryJdbc implements RegistroVendas, HistoricoVendas {
                     return resultado.getBoolean(1);
                 }
             }
+        });
+    }
+
+    @Override
+    public Optional<Venda> buscarPorId(long vendaId) {
+        String sql = "SELECT v.id AS v_id, v.data_hora, v.forma_pagamento, i.quantidade, i.preco_unitario, "
+                + Mapeadores.COLUNAS_PRODUTO + ", " + Mapeadores.COLUNAS_CLIENTE + """
+                 FROM venda v
+                 JOIN item_venda i ON i.venda_id = v.id
+                 JOIN produto p ON p.id = i.produto_id
+                 LEFT JOIN cliente c ON c.id = v.cliente_id
+                WHERE v.id = ?
+                ORDER BY i.id""";
+        return contexto.usar(conexao -> {
+            Linha dados = null;
+            Cliente cliente = null;
+            try (PreparedStatement comando = conexao.prepareStatement(sql)) {
+                comando.setLong(1, vendaId);
+                try (ResultSet linha = comando.executeQuery()) {
+                    while (linha.next()) {
+                        if (dados == null) {
+                            dados = new Linha();
+                            dados.dataHora = linha.getObject("data_hora", LocalDateTime.class);
+                            dados.forma = FormaPagamento.valueOf(linha.getString("forma_pagamento"));
+                            cliente = linha.getObject("c_id") == null ? null : Mapeadores.cliente(linha);
+                        }
+                        dados.itens.add(new Venda.ItemRegistrado(Mapeadores.produto(linha),
+                                linha.getBigDecimal("quantidade"), linha.getBigDecimal("preco_unitario")));
+                    }
+                }
+            }
+            return dados == null ? Optional.<Venda>empty()
+                    : Optional.of(Venda.restaurar(vendaId, cliente, dados.forma, dados.dataHora, dados.itens));
         });
     }
 

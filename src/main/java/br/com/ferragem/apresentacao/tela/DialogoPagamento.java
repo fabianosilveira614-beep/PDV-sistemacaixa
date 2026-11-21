@@ -1,6 +1,7 @@
 package br.com.ferragem.apresentacao.tela;
 
 import br.com.ferragem.apresentacao.comum.Formatos;
+import br.com.ferragem.apresentacao.comum.Formulario;
 import br.com.ferragem.apresentacao.comum.Tema;
 import br.com.ferragem.dominio.modelo.venda.FormaPagamento;
 import javafx.application.Platform;
@@ -22,18 +23,23 @@ import javafx.scene.layout.VBox;
 
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 /**
- * Escolha da forma de pagamento (F9 no PDV).
+ * Escolha da forma de pagamento, usada em dois lugares:
  *
- * <p>Teclado: <b>1</b> Dinheiro · <b>2</b> Pix · <b>3</b> Crédito · <b>4</b> Débito ·
- * <b>5</b> Fiado; <b>Enter</b> confirma; <b>Esc</b> volta ao carrinho. Em dinheiro, o foco vai
- * para o valor recebido (vazio = valor exato, sem troco).</p>
+ * <ul>
+ *   <li><b>Venda no PDV</b> ({@link #paraVenda}): teclas 1 a 5 (inclui fiado); o valor é o total.</li>
+ *   <li><b>Recebimento de fiado</b> ({@link #paraFiado}): teclas 1 a 4 (não se paga fiado com fiado);
+ *       aparece o campo "Valor a pagar", editável ou não conforme o botão escolhido.</li>
+ * </ul>
  *
- * <p>O troco mostrado aqui é só uma <b>prévia</b> para o operador separar as notas. O valor
- * oficial vem do comprovante, calculado por {@code PagamentoDinheiro} (a regra mora lá).</p>
+ * <p>Teclado: números escolhem a forma; <b>Enter</b> confirma; <b>Esc</b> volta. Com o cursor num
+ * campo de texto os números são digitados no campo. O troco mostrado é só uma <b>prévia</b> para o
+ * operador separar as notas: o valor oficial vem do comprovante, calculado por
+ * {@code PagamentoDinheiro} (a regra mora lá).</p>
  */
 public final class DialogoPagamento {
 
@@ -41,41 +47,60 @@ public final class DialogoPagamento {
      * O que o operador escolheu.
      *
      * @param forma         forma de pagamento
+     * @param valor         valor a pagar (na venda, o total)
      * @param valorRecebido dinheiro entregue; nulo nas outras formas ou quando é o valor exato
      */
-    public record Escolha(FormaPagamento forma, BigDecimal valorRecebido) {
+    public record Escolha(FormaPagamento forma, BigDecimal valor, BigDecimal valorRecebido) {
     }
 
-    private static final Map<KeyCode, FormaPagamento> TECLAS = new LinkedHashMap<>();
-
-    static {
-        TECLAS.put(KeyCode.DIGIT1, FormaPagamento.DINHEIRO);
-        TECLAS.put(KeyCode.DIGIT2, FormaPagamento.PIX);
-        TECLAS.put(KeyCode.DIGIT3, FormaPagamento.CREDITO);
-        TECLAS.put(KeyCode.DIGIT4, FormaPagamento.DEBITO);
-        TECLAS.put(KeyCode.DIGIT5, FormaPagamento.FIADO);
-    }
+    private static final List<KeyCode> TECLAS = List.of(KeyCode.DIGIT1, KeyCode.DIGIT2, KeyCode.DIGIT3,
+            KeyCode.DIGIT4, KeyCode.DIGIT5);
 
     private final Dialog<Escolha> dialogo = new Dialog<>();
     private final ToggleGroup formas = new ToggleGroup();
-    private final Map<FormaPagamento, ToggleButton> botoes = new LinkedHashMap<>();
+    private final Map<KeyCode, ToggleButton> botoesPorTecla = new LinkedHashMap<>();
+    private final TextField valor = new TextField();
     private final TextField recebido = new TextField();
     private final Label previaTroco = new Label();
     private final Label aviso = new Label();
     private final VBox areaDinheiro;
-    private final BigDecimal total;
+    private final BigDecimal valorFixo;
     private final boolean temCliente;
 
     /**
+     * Pagamento de uma venda no PDV.
+     *
      * @param total       total da venda
      * @param nomeCliente nome do cliente identificado, ou {@code null}
+     * @return o diálogo pronto para {@link #mostrar()}
      */
-    public DialogoPagamento(BigDecimal total, String nomeCliente) {
-        this.total = total;
-        this.temCliente = nomeCliente != null;
-        dialogo.setTitle("Pagamento");
-        dialogo.setHeaderText("Total: " + Formatos.moeda(total)
-                + (temCliente ? "    Cliente: " + nomeCliente : ""));
+    public static DialogoPagamento paraVenda(BigDecimal total, String nomeCliente) {
+        return new DialogoPagamento("Pagamento",
+                "Total: " + Formatos.moeda(total) + (nomeCliente != null ? "    Cliente: " + nomeCliente : ""),
+                List.of(FormaPagamento.values()), total, false, false, nomeCliente != null);
+    }
+
+    /**
+     * Recebimento de compras fiado.
+     *
+     * @param descricao     o que está sendo pago (ex.: "Pagar selecionadas: 2 compras")
+     * @param valorSugerido valor já preenchido
+     * @param valorEditavel {@code false} em "Quitar tudo", em que o valor é sempre o total devido
+     * @return o diálogo pronto para {@link #mostrar()}
+     */
+    public static DialogoPagamento paraFiado(String descricao, BigDecimal valorSugerido, boolean valorEditavel) {
+        return new DialogoPagamento("Receber fiado", descricao,
+                List.of(FormaPagamento.DINHEIRO, FormaPagamento.PIX, FormaPagamento.CREDITO, FormaPagamento.DEBITO),
+                valorSugerido, true, valorEditavel, true);
+    }
+
+    private DialogoPagamento(String titulo, String cabecalho, List<FormaPagamento> formasAceitas,
+                             BigDecimal valorSugerido, boolean mostrarValor, boolean valorEditavel,
+                             boolean temCliente) {
+        this.temCliente = temCliente;
+        this.valorFixo = mostrarValor ? null : valorSugerido;
+        dialogo.setTitle(titulo);
+        dialogo.setHeaderText(cabecalho);
         Tema.aplicar(dialogo.getDialogPane());
 
         ButtonType confirmar = new ButtonType("Confirmar (Enter)", ButtonBar.ButtonData.OK_DONE);
@@ -84,33 +109,38 @@ public final class DialogoPagamento {
         botaoConfirmar.disableProperty().bind(formas.selectedToggleProperty().isNull());
 
         HBox linhaFormas = new HBox(8);
-        int numero = 1;
-        for (FormaPagamento forma : TECLAS.values()) {
-            ToggleButton botao = new ToggleButton(numero++ + "  " + forma.getDescricao());
+        for (int i = 0; i < formasAceitas.size(); i++) {
+            FormaPagamento forma = formasAceitas.get(i);
+            ToggleButton botao = new ToggleButton((i + 1) + "  " + forma.getDescricao());
             botao.setToggleGroup(formas);
             botao.setUserData(forma);
             botao.getStyleClass().add("botao-forma");
             botao.setFocusTraversable(false);
-            botoes.put(forma, botao);
+            botoesPorTecla.put(TECLAS.get(i), botao);
             linhaFormas.getChildren().add(botao);
         }
 
+        valor.setText(Formatos.numero(valorSugerido));
+        valor.setMaxWidth(200);
         recebido.setPromptText("vazio = valor exato");
         recebido.setMaxWidth(200);
         previaTroco.getStyleClass().add("valor-destaque");
-        areaDinheiro = new VBox(6, new Label("Valor recebido (R$)"), recebido, previaTroco);
+        areaDinheiro = new VBox(6, new Label("Valor recebido em dinheiro (R$)"), recebido, previaTroco);
         areaDinheiro.setVisible(false);
         areaDinheiro.setManaged(false);
         aviso.setWrapText(true);
+        aviso.setMinHeight(36);
+        aviso.setMaxWidth(560);
 
         recebido.textProperty().addListener((obs, antes, agora) -> atualizarPrevia());
+        valor.textProperty().addListener((obs, antes, agora) -> atualizarPrevia());
         formas.selectedToggleProperty().addListener((obs, antes, agora) -> aoEscolher());
 
         dialogo.getDialogPane().addEventFilter(KeyEvent.KEY_PRESSED, evento -> {
             boolean digitandoNoCampo = dialogo.getDialogPane().getScene().getFocusOwner() instanceof TextInputControl;
-            FormaPagamento forma = TECLAS.get(normalizar(evento.getCode()));
-            if (forma != null && !digitandoNoCampo) {
-                botoes.get(forma).setSelected(true);
+            ToggleButton botao = botoesPorTecla.get(normalizar(evento.getCode()));
+            if (botao != null && !digitandoNoCampo) {
+                botao.setSelected(true);
                 evento.consume();
             }
         });
@@ -120,20 +150,34 @@ public final class DialogoPagamento {
             }
         });
 
-        VBox conteudo = new VBox(12, new Label("Escolha a forma (teclas 1 a 5):"), linhaFormas, areaDinheiro, aviso);
+        VBox conteudo = new VBox(12);
+        if (mostrarValor) {
+            valor.setEditable(valorEditavel);
+            if (!valorEditavel) {
+                valor.getStyleClass().add("campo-somente-leitura");
+            }
+            conteudo.getChildren().add(new Formulario().campo("_Valor a pagar (R$)", valor));
+        }
+        conteudo.getChildren().addAll(new Label("Escolha a forma (teclas 1 a " + formasAceitas.size() + "):"),
+                linhaFormas, areaDinheiro, aviso);
         conteudo.setPadding(new Insets(8, 0, 0, 0));
         dialogo.getDialogPane().setContent(conteudo);
         dialogo.setResultConverter(botao -> botao == confirmar ? escolha() : null);
         Platform.runLater(() -> dialogo.getDialogPane().requestFocus());
     }
 
-    /** @return a escolha, ou vazio se o operador voltou ao carrinho (Esc) */
+    /** @return a escolha, ou vazio se o operador voltou (Esc) */
     public Optional<Escolha> mostrar() {
         return dialogo.showAndWait();
     }
 
     private FormaPagamento selecionada() {
         return formas.getSelectedToggle() == null ? null : (FormaPagamento) formas.getSelectedToggle().getUserData();
+    }
+
+    /** Valor a pagar: o fixo (venda) ou o digitado (fiado). */
+    private Optional<BigDecimal> valorAPagar() {
+        return valorFixo != null ? Optional.of(valorFixo) : Formatos.lerNumero(valor.getText());
     }
 
     private void aoEscolher() {
@@ -155,36 +199,47 @@ public final class DialogoPagamento {
     }
 
     private void atualizarPrevia() {
-        if (recebido.getText().isBlank()) {
-            previaTroco.setText("Sem troco");
+        Optional<BigDecimal> aPagar = valorAPagar();
+        if (recebido.getText().isBlank() || aPagar.isEmpty()) {
+            previaTroco.setText(recebido.getText().isBlank() ? "Sem troco" : "");
             return;
         }
-        Optional<BigDecimal> valor = Formatos.lerNumero(recebido.getText());
-        if (valor.isEmpty()) {
+        Optional<BigDecimal> entregue = Formatos.lerNumero(recebido.getText());
+        if (entregue.isEmpty()) {
             previaTroco.setText("");
-        } else if (valor.get().compareTo(total) >= 0) {
-            previaTroco.setText("Troco: " + Formatos.moeda(valor.get().subtract(total)));
+        } else if (entregue.get().compareTo(aPagar.get()) >= 0) {
+            previaTroco.setText("Troco: " + Formatos.moeda(entregue.get().subtract(aPagar.get())));
         } else {
-            previaTroco.setText("Faltam " + Formatos.moeda(total.subtract(valor.get())));
+            previaTroco.setText("Faltam " + Formatos.moeda(aPagar.get().subtract(entregue.get())));
         }
     }
 
     private boolean entradaValida() {
+        if (valorAPagar().isEmpty()) {
+            erro("Valor a pagar inválido. Digite, por exemplo, 50,00.");
+            valor.requestFocus();
+            return false;
+        }
         if (selecionada() == FormaPagamento.DINHEIRO && !recebido.getText().isBlank()
                 && Formatos.lerNumero(recebido.getText()).isEmpty()) {
-            aviso.getStyleClass().add("mensagem-erro");
-            aviso.setText("Valor recebido inválido. Digite, por exemplo, 50,00 ou deixe vazio.");
+            erro("Valor recebido inválido. Digite, por exemplo, 50,00 ou deixe vazio.");
             recebido.requestFocus();
             return false;
         }
         return true;
     }
 
+    private void erro(String texto) {
+        aviso.getStyleClass().remove("mensagem-erro");
+        aviso.getStyleClass().add("mensagem-erro");
+        aviso.setText(texto);
+    }
+
     private Escolha escolha() {
         FormaPagamento forma = selecionada();
-        BigDecimal valor = forma == FormaPagamento.DINHEIRO
+        BigDecimal entregue = forma == FormaPagamento.DINHEIRO
                 ? Formatos.lerNumero(recebido.getText()).orElse(null) : null;
-        return new Escolha(forma, valor);
+        return new Escolha(forma, valorAPagar().orElseThrow(), entregue);
     }
 
     /** Teclado numérico (NUMPAD1…5) vale o mesmo que a fileira de cima. */

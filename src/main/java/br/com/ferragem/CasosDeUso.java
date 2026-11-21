@@ -13,10 +13,12 @@ import br.com.ferragem.aplicacao.casodeuso.ConsultarClientes;
 import br.com.ferragem.aplicacao.casodeuso.ConsultarContaFiado;
 import br.com.ferragem.aplicacao.casodeuso.ConsultarHistoricoCliente;
 import br.com.ferragem.aplicacao.casodeuso.ConsultarProdutos;
+import br.com.ferragem.aplicacao.casodeuso.ConsultarVenda;
 import br.com.ferragem.aplicacao.casodeuso.ExcluirCliente;
 import br.com.ferragem.aplicacao.casodeuso.ExcluirProduto;
 import br.com.ferragem.aplicacao.casodeuso.FecharCaixa;
 import br.com.ferragem.aplicacao.casodeuso.InativarProduto;
+import br.com.ferragem.aplicacao.casodeuso.ListarClientes;
 import br.com.ferragem.aplicacao.casodeuso.ListarProdutos;
 import br.com.ferragem.aplicacao.casodeuso.PagarDebito;
 import br.com.ferragem.aplicacao.casodeuso.RegistrarSangria;
@@ -53,7 +55,9 @@ public record CasosDeUso(
         AtualizarCliente atualizarCliente,
         ExcluirCliente excluirCliente,
         ConsultarClientes consultarClientes,
+        ListarClientes listarClientes,
         ConsultarHistoricoCliente consultarHistoricoCliente,
         ConsultarContaFiado consultarContaFiado,
+        ConsultarVenda consultarVenda,
         PagarDebito pagarDebito) {
 }

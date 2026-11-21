@@ -7,6 +7,7 @@ import br.com.ferragem.dominio.modelo.cliente.Cliente;
 import br.com.ferragem.dominio.modelo.cliente.Cpf;
 
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Cadastra um cliente, pela tela de clientes ou direto do PDV para liberar o fiado.
@@ -41,8 +42,15 @@ public class CadastrarCliente {
     public Cliente executar(Comando comando) throws RegraNegocioException {
         Cpf cpf = CpfOpcional.ler(comando.cpf());
         Cliente cliente = new Cliente(comando.nome(), cpf, comando.telefone());
-        if (cpf != null && clientes.buscarPorCpf(cpf).isPresent()) {
-            throw new RegistroDuplicadoException("Já existe um cliente cadastrado com este CPF.");
+        if (cpf != null) {
+            Optional<Cliente> dono = clientes.buscarPorCpf(cpf);
+            if (dono.isPresent()) {
+                // cliente "excluído" que já tinha compras fica inativo e continua dono do CPF
+                throw new RegistroDuplicadoException(dono.get().estaAtivo()
+                        ? "Já existe um cliente cadastrado com este CPF."
+                        : "Este CPF pertence a um cliente excluído do cadastro (ele tinha compras, "
+                          + "por isso foi inativado e não apagado).");
+            }
         }
         clientes.salvar(cliente);
         return cliente;

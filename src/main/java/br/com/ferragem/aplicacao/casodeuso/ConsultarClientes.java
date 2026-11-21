@@ -24,12 +24,12 @@ public class ConsultarClientes {
     }
 
     /**
-     * @param termo parte do nome, ou um CPF completo (com ou sem pontuação)
-     * @return clientes ativos encontrados; vazio se o termo estiver em branco
+     * @param termo parte do nome, ou um CPF completo (com ou sem pontuação); vazio ou nulo lista todos
+     * @return clientes ativos encontrados, em ordem de nome (excluídos nunca aparecem: não podem comprar)
      */
     public List<Cliente> executar(String termo) {
         if (termo == null || termo.isBlank()) {
-            return List.of();
+            return clientes.buscarPorNome("");
         }
         String procurado = termo.trim();
         if (procurado.matches("[\\d.\\-\\s]+")) {

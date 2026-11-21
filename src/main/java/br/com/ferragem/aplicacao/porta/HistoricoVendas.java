@@ -6,6 +6,7 @@ import br.com.ferragem.dominio.modelo.venda.Venda;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Consulta de vendas já feitas. Separada de {@link RegistroVendas} (segregação de interfaces):
@@ -32,4 +33,10 @@ public interface HistoricoVendas {
      * @return {@code true} se o produto aparece em alguma venda (então não pode ser apagado)
      */
     boolean produtoFoiVendido(Produto produto);
+
+    /**
+     * @param vendaId número da venda
+     * @return a venda finalizada, com cliente e itens como foram vendidos, se existir
+     */
+    Optional<Venda> buscarPorId(long vendaId);
 }

@@ -5,11 +5,14 @@ import br.com.ferragem.apresentacao.comum.Formatos;
 import br.com.ferragem.apresentacao.comum.Icones;
 import br.com.ferragem.apresentacao.comum.Sessao;
 import br.com.ferragem.apresentacao.comum.Tarefas;
+import br.com.ferragem.apresentacao.tela.TelaClientes;
 import br.com.ferragem.apresentacao.tela.TelaLogin;
 import br.com.ferragem.apresentacao.tela.TelaPdv;
+import br.com.ferragem.apresentacao.tela.TelaPerfilCliente;
 import br.com.ferragem.apresentacao.tela.TelaProdutos;
 import br.com.ferragem.apresentacao.tela.TelaTrocaSenha;
 import br.com.ferragem.dominio.modelo.caixa.Operador;
+import br.com.ferragem.dominio.modelo.cliente.Cliente;
 import br.com.ferragem.dominio.modelo.caixa.SessaoCaixa;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -141,9 +144,26 @@ public final class Navegador {
         entrarNaArea(Area.PRODUTOS, new TelaProdutos(casos).raiz());
     }
 
-    /** Cadastro de clientes e conta de fiado (próxima etapa). */
+    /** Lista de clientes: busca, cadastro, exclusão e entrada para o perfil. */
     public void irParaClientes() {
-        irParaAreaEmConstrucao(Area.CLIENTES, "cadastro, perfil e conta de fiado de cada cliente");
+        if (exigirSenhaPropria()) {
+            return;
+        }
+        entrarNaArea(Area.CLIENTES, new TelaClientes(casos, this).raiz());
+    }
+
+    /**
+     * Perfil de um cliente (dados, conta de fiado, compras). Fica dentro da área Clientes:
+     * Esc ou o botão "← Clientes" voltam para a lista.
+     *
+     * @param cliente cliente escolhido na lista
+     * @param aba     aba que abre selecionada
+     */
+    public void abrirPerfilCliente(Cliente cliente, TelaPerfilCliente.Aba aba) {
+        if (exigirSenhaPropria()) {
+            return;
+        }
+        entrarNaArea(Area.CLIENTES, new TelaPerfilCliente(casos, this, cliente, aba).raiz());
     }
 
     /** Relatórios (próxima etapa). */

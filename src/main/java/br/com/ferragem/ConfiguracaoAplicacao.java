@@ -13,10 +13,12 @@ import br.com.ferragem.aplicacao.casodeuso.ConsultarClientes;
 import br.com.ferragem.aplicacao.casodeuso.ConsultarContaFiado;
 import br.com.ferragem.aplicacao.casodeuso.ConsultarHistoricoCliente;
 import br.com.ferragem.aplicacao.casodeuso.ConsultarProdutos;
+import br.com.ferragem.aplicacao.casodeuso.ConsultarVenda;
 import br.com.ferragem.aplicacao.casodeuso.ExcluirCliente;
 import br.com.ferragem.aplicacao.casodeuso.ExcluirProduto;
 import br.com.ferragem.aplicacao.casodeuso.FecharCaixa;
 import br.com.ferragem.aplicacao.casodeuso.InativarProduto;
+import br.com.ferragem.aplicacao.casodeuso.ListarClientes;
 import br.com.ferragem.aplicacao.casodeuso.ListarProdutos;
 import br.com.ferragem.aplicacao.casodeuso.PagarDebito;
 import br.com.ferragem.aplicacao.casodeuso.RegistrarSangria;
@@ -136,8 +138,10 @@ public final class ConfiguracaoAplicacao {
                 new AtualizarCliente(clientes),
                 new ExcluirCliente(clientes, debitos, vendas),
                 new ConsultarClientes(clientes),
+                new ListarClientes(clientes, debitos),
                 new ConsultarHistoricoCliente(vendas),
                 new ConsultarContaFiado(debitos),
+                new ConsultarVenda(vendas),
                 new PagarDebito(debitos, caixas, processadores, contexto, relogio));
     }
 

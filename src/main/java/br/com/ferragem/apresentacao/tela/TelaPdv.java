@@ -361,7 +361,8 @@ public final class TelaPdv {
     }
 
     private void buscarProduto(String termoInicial) {
-        new DialogoBusca<Produto>("Buscar produto", "Digite parte do nome ou o código e aperte Enter.",
+        new DialogoBusca<Produto>("Buscar produto",
+                "Digite parte do nome ou o código para filtrar. Enter ou ↓ vão para a lista.",
                 casos.consultarProdutos()::executar, TelaPdv::descreverProduto, termoInicial)
                 .mostrar()
                 .ifPresent(this::incluir);
@@ -473,8 +474,10 @@ public final class TelaPdv {
             }
         }
         // a lista mostra só o nome: o CPF não aparece no PDV (decisão do grupo, LGPD)
-        new DialogoBusca<Cliente>("Cliente", "Digite parte do nome ou o CPF e aperte Enter.",
+        new DialogoBusca<Cliente>("Cliente",
+                "Digite parte do nome ou o CPF para filtrar. Enter ou ↓ vão para a lista.",
                 casos.consultarClientes()::executar, Cliente::getNome, "")
+                .comAcaoExtra("Cadastrar novo (F2)", KeyCode.F2, () -> new DialogoCliente(casos, null).mostrar())
                 .mostrar()
                 .ifPresent(cliente -> {
                     venda.identificarCliente(cliente);
@@ -508,7 +511,7 @@ public final class TelaPdv {
             Avisos.erro(mensagem, "O carrinho está vazio.");
             return;
         }
-        new DialogoPagamento(venda.calcularTotal(), venda.getCliente().map(Cliente::getNome).orElse(null))
+        DialogoPagamento.paraVenda(venda.calcularTotal(), venda.getCliente().map(Cliente::getNome).orElse(null))
                 .mostrar()
                 .ifPresent(this::concluir);
     }

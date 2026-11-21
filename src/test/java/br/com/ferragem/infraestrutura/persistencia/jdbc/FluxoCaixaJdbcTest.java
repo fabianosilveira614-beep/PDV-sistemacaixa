@@ -3,7 +3,9 @@ package br.com.ferragem.infraestrutura.persistencia.jdbc;
 import br.com.ferragem.aplicacao.casodeuso.CadastrarCliente;
 import br.com.ferragem.aplicacao.casodeuso.CadastrarProduto;
 import br.com.ferragem.aplicacao.casodeuso.ConsultarHistoricoCliente;
+import br.com.ferragem.aplicacao.casodeuso.ConsultarVenda;
 import br.com.ferragem.aplicacao.casodeuso.ExcluirProduto;
+import br.com.ferragem.aplicacao.casodeuso.ListarClientes;
 import br.com.ferragem.aplicacao.casodeuso.PagarDebito;
 import br.com.ferragem.aplicacao.casodeuso.RegistrarVenda;
 import br.com.ferragem.aplicacao.porta.CaixaRepository;
@@ -228,5 +230,26 @@ class FluxoCaixaJdbcTest {
         assertEquals(ExcluirProduto.Resultado.INATIVADO, excluir.executar(parafuso.getId().orElseThrow()));
         assertTrue(reabrir().produtos.buscarPorId(parafuso.getId().orElseThrow()).isPresent());
         assertEquals(1L, contar("item_venda"), "a venda antiga continua íntegra");
+    }
+
+    @Test
+    @DisplayName("Lista de clientes com total devido e consulta da venda fiado pelo número, no banco")
+    void clientesComTotalEVendaPorNumero() throws Exception {
+        Venda venda = carrinho(sistema, "40");
+        venda.identificarCliente(seuZe);
+        long vendaId = sistema.registrarVenda().executar(
+                new RegistrarVenda.Comando(venda, FormaPagamento.FIADO, null, ana)).vendaId();
+
+        SistemaJdbc depois = reabrir();
+        List<ListarClientes.ResumoCliente> lista = new ListarClientes(depois.clientes, depois.debitos).executar("");
+        assertEquals(1, lista.size());
+        assertEquals(0, valor("10.00").compareTo(lista.get(0).totalDevido()));
+        assertEquals(1, lista.get(0).comprasEmAberto());
+
+        Venda lida = new ConsultarVenda(depois.vendas).executar(vendaId).orElseThrow();
+        assertEquals("Seu Zé", lida.getCliente().orElseThrow().getNome());
+        assertEquals(0, valor("40").compareTo(lida.getItens().get(0).getQuantidade()));
+        assertEquals(FormaPagamento.FIADO, lida.getFormaPagamento().orElseThrow());
+        assertTrue(new ConsultarVenda(depois.vendas).executar(vendaId + 1000).isEmpty());
     }
 }

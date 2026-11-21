@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Vendas em memória, só para testes. A primeira venda recebe o número 1.
@@ -51,6 +52,12 @@ public class RegistroVendasEmMemoria implements RegistroVendas, HistoricoVendas 
     @Override
     public boolean clienteTemVendas(Cliente cliente) {
         return registros.stream().anyMatch(r -> r.venda().getCliente().filter(c -> c == cliente).isPresent());
+    }
+
+    @Override
+    public Optional<Venda> buscarPorId(long vendaId) {
+        return registros.stream().map(Registro::venda)
+                .filter(v -> v.getId().orElse(-1L) == vendaId).findFirst();
     }
 
     @Override

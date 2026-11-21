@@ -3,7 +3,10 @@ package br.com.ferragem.apresentacao.tela;
 import br.com.ferragem.apresentacao.comum.Avisos;
 import br.com.ferragem.apresentacao.comum.Tarefas;
 import br.com.ferragem.apresentacao.comum.Tema;
+import javafx.animation.PauseTransition;
 import javafx.application.Platform;
+import javafx.event.ActionEvent;
+import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Dialog;
@@ -15,18 +18,24 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.VBox;
+import javafx.util.Duration;
 
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Janela de busca reaproveitada pelo PDV: produto (F3) e cliente (F4).
  *
- * <p>Uso só pelo teclado: digite e Enter para buscar; o foco desce para a lista com o primeiro
- * resultado marcado; ↑/↓ escolhem; Enter (ou duplo clique) confirma; ↑ no primeiro item volta
- * para o campo, para refinar a busca; Esc fecha sem escolher. A busca roda em segundo plano
- * porque vai ao banco.</p>
+ * <p>Pode ter uma ação extra à esquerda (ex.: "Cadastrar novo (F2)" na busca de cliente do PDV),
+ * que cria o item na hora e o devolve como se tivesse sido escolhido na lista.</p>
+ *
+ * <p>Abre já mostrando tudo (a busca com o campo vazio lista todos os ativos) e filtra enquanto
+ * se digita, depois de uma pausa curta, para não ir ao banco a cada letra. Uso só pelo teclado:
+ * Enter ou ↓ no campo descem para a lista com o primeiro resultado marcado; ↑/↓ escolhem; Enter
+ * (ou duplo clique) confirma; ↑ no primeiro item volta para o campo; Esc fecha sem escolher.
+ * A busca roda em segundo plano porque vai ao banco.</p>
  *
  * @param <T> tipo do que é buscado
  */
@@ -46,6 +55,12 @@ public final class DialogoBusca<T> {
     private final TextField termo = new TextField();
     private final ListView<T> resultados = new ListView<>();
     private final Label mensagem = new Label();
+    private final PauseTransition esperaDigitacao = new PauseTransition(Duration.millis(300));
+    private final Busca<T> busca;
+    /** Texto da última busca que já voltou do banco; {@code null} enquanto nenhuma voltou. */
+    private String textoExibido;
+    /** Conta as buscas para descartar a resposta de uma busca antiga que chegue depois da nova. */
+    private int numeroDaBusca;
 
     /**
      * @param titulo    título da janela
@@ -56,6 +71,7 @@ public final class DialogoBusca<T> {
      */
     public DialogoBusca(String titulo, String instrucao, Busca<T> busca, Function<T, String> descrever,
                         String inicial) {
+        this.busca = busca;
         dialogo.setTitle(titulo);
         dialogo.setHeaderText(instrucao);
         Tema.aplicar(dialogo.getDialogPane());
@@ -65,7 +81,7 @@ public final class DialogoBusca<T> {
                 .bind(resultados.getSelectionModel().selectedItemProperty().isNull());
 
         resultados.setPrefSize(560, 300);
-        resultados.setPlaceholder(new Label("Digite e aperte Enter para buscar."));
+        resultados.setPlaceholder(new Label("Carregando…"));
         resultados.setCellFactory(lista -> new ListCell<>() {
             @Override
             protected void updateItem(T item, boolean vazio) {
@@ -77,14 +93,14 @@ public final class DialogoBusca<T> {
         // reserva a linha da mensagem: a janela não cresce sozinha quando o texto aparece
         mensagem.setMinHeight(36);
         termo.setText(inicial);
+        // filtra enquanto digita, mas só depois de uma pausa
+        esperaDigitacao.setOnFinished(evento -> buscar(false));
+        termo.textProperty().addListener((obs, antes, agora) -> esperaDigitacao.playFromStart());
 
         // filtro (e não handler comum) para o Enter do campo não chegar ao botão "Escolher"
         termo.addEventFilter(KeyEvent.KEY_PRESSED, evento -> {
-            if (evento.getCode() == KeyCode.ENTER) {
-                buscar(busca);
-                evento.consume();
-            } else if (evento.getCode() == KeyCode.DOWN && !resultados.getItems().isEmpty()) {
-                focarLista();
+            if (evento.getCode() == KeyCode.ENTER || evento.getCode() == KeyCode.DOWN) {
+                irParaLista();
                 evento.consume();
             }
         });
@@ -108,10 +124,39 @@ public final class DialogoBusca<T> {
         Platform.runLater(() -> {
             termo.requestFocus();
             termo.end();
-            if (!inicial.isBlank()) {
-                buscar(busca);
+            // com texto já digitado (ex.: código não encontrado no PDV), desce para a lista
+            buscar(!inicial.isBlank());
+        });
+    }
+
+    /**
+     * Acrescenta um botão à esquerda, com tecla de atalho, que produz o item sem buscar
+     * (cadastro rápido). Se a ação devolver algo, a busca fecha com esse item escolhido;
+     * se devolver vazio (cadastro cancelado), a busca continua aberta.
+     *
+     * @param rotulo texto do botão, já com a tecla (ex.: "Cadastrar novo (F2)")
+     * @param tecla  tecla que aciona o botão dentro desta janela
+     * @param acao   ação que cria o item
+     * @return esta mesma busca, para encadear com {@link #mostrar()}
+     */
+    public DialogoBusca<T> comAcaoExtra(String rotulo, KeyCode tecla, Supplier<Optional<T>> acao) {
+        ButtonType tipo = new ButtonType(rotulo, ButtonBar.ButtonData.LEFT);
+        dialogo.getDialogPane().getButtonTypes().add(tipo);
+        Button botao = (Button) dialogo.getDialogPane().lookupButton(tipo);
+        botao.addEventFilter(ActionEvent.ACTION, evento -> {
+            evento.consume(); // não fecha a busca por conta própria
+            acao.get().ifPresent(item -> {
+                dialogo.setResult(item);
+                dialogo.close();
+            });
+        });
+        dialogo.getDialogPane().addEventFilter(KeyEvent.KEY_PRESSED, evento -> {
+            if (evento.getCode() == tecla) {
+                evento.consume();
+                botao.fire();
             }
         });
+        return this;
     }
 
     /** @return o item escolhido, ou vazio se o usuário cancelou */
@@ -119,20 +164,46 @@ public final class DialogoBusca<T> {
         return dialogo.showAndWait();
     }
 
-    private void buscar(Busca<T> busca) {
+    /** Enter ou ↓ no campo: se a lista já mostra o que está digitado, desce; senão busca antes. */
+    private void irParaLista() {
+        if (termo.getText().equals(textoExibido) && esperaDigitacao.getStatus() != PauseTransition.Status.RUNNING) {
+            if (!resultados.getItems().isEmpty()) {
+                focarLista();
+            }
+        } else {
+            buscar(true);
+        }
+    }
+
+    /**
+     * @param descerParaLista se, ao chegar o resultado, o foco deve ir para a lista (Enter) ou
+     *                        ficar no campo (filtro enquanto digita)
+     */
+    private void buscar(boolean descerParaLista) {
+        esperaDigitacao.stop();
         String texto = termo.getText();
-        Avisos.limpar(mensagem);
-        Tarefas.emSegundoPlano(termo, () -> busca.buscar(texto), encontrados -> {
+        int estaBusca = ++numeroDaBusca;
+        // nada fica desabilitado: desabilitar o campo tiraria o foco de quem está digitando
+        Tarefas.emSegundoPlano(null, () -> busca.buscar(texto), encontrados -> {
+            if (estaBusca != numeroDaBusca) {
+                return; // chegou depois de uma busca mais nova: descarta
+            }
+            textoExibido = texto;
             resultados.getItems().setAll(encontrados);
-            if (encontrados.isEmpty()) {
+            resultados.setPlaceholder(new Label(texto.isBlank() ? "Nada cadastrado ainda." : "Nada encontrado."));
+            if (encontrados.isEmpty() && !texto.isBlank()) {
                 Avisos.erro(mensagem, "Nada encontrado para \"" + texto.trim() + "\".");
-                termo.requestFocus();
             } else {
+                Avisos.limpar(mensagem);
+            }
+            if (descerParaLista && !encontrados.isEmpty()) {
                 focarLista();
             }
         }, erro -> {
-            Avisos.tratar(erro, mensagem);
-            termo.requestFocus();
+            if (estaBusca == numeroDaBusca) {
+                Avisos.tratar(erro, mensagem);
+                termo.requestFocus();
+            }
         });
     }
 

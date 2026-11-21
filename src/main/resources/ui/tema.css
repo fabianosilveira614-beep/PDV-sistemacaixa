@@ -293,3 +293,57 @@
 .table-row-cell:selected .table-cell {
     -fx-text-fill: white;
 }
+
+/* ------------------------------------------------------------ clientes e fiado */
+
+.subtitulo {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -cor-texto-secundario;
+}
+
+/* totais no perfil: menor que o total do PDV, mas ainda em destaque */
+.valor-total {
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -cor-primaria;
+}
+
+/* quem deve: vermelho de erro (6,08:1 sobre o fundo e sobre branco).
+   Em linha selecionada vale a regra de seleção (texto branco), que é mais específica. */
+.valor-devedor,
+.table-cell.valor-devedor {
+    -fx-text-fill: -cor-erro;
+    -fx-font-weight: bold;
+}
+
+/* valor que o operador não pode mudar (ex.: "Quitar tudo"): fundo apagado, texto normal */
+.campo-somente-leitura {
+    -fx-control-inner-background: #ECEEEC;
+    -fx-text-fill: -cor-texto;
+}
+
+/* abas do perfil: a escolhida fica branca com uma faixa laranja em cima */
+.tab-pane > .tab-header-area > .headers-region > .tab {
+    -fx-background-color: -cor-primaria-clara;
+    -fx-background-radius: 6 6 0 0;
+    -fx-padding: 6 14 6 14;
+}
+
+.tab-pane > .tab-header-area > .headers-region > .tab:selected {
+    -fx-background-color: -cor-destaque, -cor-superficie;
+    -fx-background-insets: 0, 3 0 0 0;
+}
+
+.tab-pane > .tab-header-area > .headers-region > .tab:selected .tab-label {
+    -fx-font-weight: bold;
+}
+
+.tab-pane > .tab-header-area > .tab-header-background {
+    -fx-background-color: transparent;
+}
+
+.tab-pane > .tab-content-area {
+    -fx-background-color: -cor-superficie;
+    -fx-padding: 0 12 12 12;
+}

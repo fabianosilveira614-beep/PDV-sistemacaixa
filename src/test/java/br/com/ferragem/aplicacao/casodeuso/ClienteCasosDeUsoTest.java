@@ -155,6 +155,21 @@ class ClienteCasosDeUsoTest {
     }
 
     @Test
+    @DisplayName("Busca sem termo lista todos os clientes ativos em ordem de nome, sem os excluídos")
+    void buscaSemTermoListaTodosAtivos() throws Exception {
+        cadastrar.executar(new CadastrarCliente.Comando("Zeca", "", ""));
+        cadastrar.executar(new CadastrarCliente.Comando("Ana", "", ""));
+        Cliente excluido = cadastrar.executar(new CadastrarCliente.Comando("Bruno", "", ""));
+        excluido.inativar();
+        ConsultarClientes consultar = new ConsultarClientes(clientes);
+
+        for (String vazio : new String[]{"", "   ", null}) {
+            List<String> nomes = consultar.executar(vazio).stream().map(Cliente::getNome).toList();
+            assertEquals(List.of("Ana", "Zeca"), nomes);
+        }
+    }
+
+    @Test
     @DisplayName("Histórico filtra pelo período (dias inclusive) e recusa período invertido")
     void historicoPorPeriodo() throws Exception {
         Cliente ze = cadastrar.executar(new CadastrarCliente.Comando("Seu Zé", "", ""));
@@ -169,5 +184,56 @@ class ClienteCasosDeUsoTest {
         assertEquals(15, doDia1Ao15.get(0).getDataHora().orElseThrow().getDayOfMonth());
         assertThrows(PeriodoInvalidoException.class,
                 () -> historico.executar(ze, LocalDate.of(2026, 11, 15), LocalDate.of(2026, 11, 1)));
+    }
+
+    // ---------------------------------------------------------------- lista com total devido
+
+    @Test
+    @DisplayName("Lista sem busca traz todos os ativos, cada um com total devido e compras em aberto")
+    void listaComTotalDevido() throws Exception {
+        Cliente ze = cadastrar.executar(new CadastrarCliente.Comando("José da Silva", "529.982.247-25", null));
+        cadastrar.executar(new CadastrarCliente.Comando("Maria Oliveira", null, null));
+        LocalDateTime ontem = LocalDateTime.of(2026, 11, 19, 10, 0);
+        Debito d1 = new Debito(ze, 1L, valor("100.00"), ontem);
+        d1.registrarPagamento(valor("30.00"), FormaPagamento.PIX, ontem);
+        debitos.salvar(d1);
+        debitos.salvar(new Debito(ze, 2L, valor("50.00"), ontem));
+        ListarClientes listar = new ListarClientes(clientes, debitos);
+
+        List<ListarClientes.ResumoCliente> todos = listar.executar("");
+
+        assertEquals(2, todos.size());
+        ListarClientes.ResumoCliente resumoZe = todos.stream()
+                .filter(r -> r.cliente() == ze).findFirst().orElseThrow();
+        assertEquals(0, valor("120.00").compareTo(resumoZe.totalDevido()));
+        assertEquals(2, resumoZe.comprasEmAberto());
+        assertEquals(1, listar.executar("529.982.247-25").size());
+        assertEquals("Maria Oliveira", listar.executar("mar").get(0).cliente().getNome());
+    }
+
+    @Test
+    @DisplayName("CPF de cliente excluído (inativado por ter compras) não pode ser recadastrado, e a mensagem diz por quê")
+    void cpfDeClienteExcluido() throws Exception {
+        Cliente ze = cadastrar.executar(new CadastrarCliente.Comando("José da Silva", "529.982.247-25", null));
+        venderPara(ze, LocalDateTime.of(2026, 11, 10, 9, 0));
+        assertEquals(ExcluirCliente.Resultado.INATIVADO, excluir.executar(ze.getId().orElseThrow()));
+
+        RegistroDuplicadoException erro = assertThrows(RegistroDuplicadoException.class, () ->
+                cadastrar.executar(new CadastrarCliente.Comando("José S.", "52998224725", null)));
+        assertTrue(erro.getMessage().contains("excluído"));
+        assertTrue(new ListarClientes(clientes, debitos).executar("").isEmpty());
+    }
+
+    @Test
+    @DisplayName("Consulta de venda pelo número traz itens e cliente; número inexistente vem vazio")
+    void consultaDeVenda() throws Exception {
+        Cliente ze = cadastrar.executar(new CadastrarCliente.Comando("José da Silva", null, null));
+        venderPara(ze, LocalDateTime.of(2026, 11, 10, 9, 0));
+        ConsultarVenda consultar = new ConsultarVenda(vendas);
+
+        Venda venda = consultar.executar(1L).orElseThrow();
+        assertEquals(1, venda.getItens().size());
+        assertEquals("José da Silva", venda.getCliente().orElseThrow().getNome());
+        assertTrue(consultar.executar(99L).isEmpty());
     }
 }

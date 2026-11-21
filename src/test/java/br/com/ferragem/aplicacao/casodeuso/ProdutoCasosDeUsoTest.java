@@ -159,7 +159,25 @@ class ProdutoCasosDeUsoTest {
         assertEquals("PRE-02", consultar.executar("PRE-02").get(0).getCodigo());
         List<Produto> porNome = consultar.executar("PREGO");
         assertEquals(2, porNome.size());
-        assertTrue(consultar.executar("   ").isEmpty());
+    }
+
+    @Test
+    @DisplayName("Busca sem termo lista todos os produtos ativos em ordem de nome, sem os inativos")
+    void buscaSemTermoListaTodosAtivos() throws Exception {
+        cadastrar.executar(prego("PRE-01", null, null));
+        long martelo = cadastrar.executar(new CadastrarProduto.Comando(UnidadeMedida.UNIDADE, "MAR-01", null, "Martelo",
+                valor("20"), valor("35"), null)).getId().orElseThrow();
+        cadastrar.executar(new CadastrarProduto.Comando(UnidadeMedida.UNIDADE, "ALI-01", null, "Alicate",
+                valor("18"), valor("30"), null));
+        new InativarProduto(produtos).executar(martelo);
+        ConsultarProdutos consultar = new ConsultarProdutos(produtos);
+
+        for (String vazio : new String[]{"", "   ", null}) {
+            List<String> nomes = consultar.executar(vazio).stream().map(Produto::getNome).toList();
+            assertEquals(2, nomes.size());
+            assertEquals("Alicate", nomes.get(0)); // ordem alfabética
+            assertFalse(nomes.contains("Martelo")); // inativo não pode ser vendido
+        }
     }
 
     // ---------------------------------------------------------------- ajuste de estoque
