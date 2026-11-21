@@ -1,0 +1,295 @@
+/*
+ * Tema único da aplicação. Todas as telas usam estas classes:
+ * mudar a identidade visual = mudar só este arquivo.
+ *
+ * Paleta (documento de projeto, seção 14). Contraste medido pela WCAG 2.1
+ * (mínimo 4,5:1 para texto normal):
+ *   primária  #1F4E3D  branco sobre ela 9,48:1
+ *   destaque  #B5501A  branco sobre ela 5,09:1  (o #D9661F original dava 3,58:1 e reprovava)
+ *   fundo     #F6F7F5  texto #1E1E1E sobre ele 15,5:1
+ *   sucesso   #2E7D32  4,77:1 sobre o fundo
+ *   erro      #B3261E  6,08:1 sobre o fundo
+ * Regra: laranja só como FUNDO de botão/destaque, nunca como cor de texto.
+ */
+
+.root {
+    -cor-primaria: #1F4E3D;
+    -cor-primaria-clara: #E6EFEB;
+    -cor-destaque: #B5501A;
+    -cor-destaque-escura: #94410F;
+    -cor-fundo: #F6F7F5;
+    -cor-superficie: #FFFFFF;
+    -cor-borda: #D5D9D6;
+    -cor-sucesso: #2E7D32;
+    -cor-erro: #B3261E;
+    -cor-texto: #1E1E1E;
+    -cor-texto-secundario: #4A4F4C;
+
+    -fx-background-color: -cor-fundo;
+    -fx-font-family: "Segoe UI", "Inter", sans-serif;
+    -fx-font-size: 14px;
+    -fx-text-fill: -cor-texto;
+    -fx-focus-color: -cor-primaria;
+    -fx-faint-focus-color: transparent;
+}
+
+/* ------------------------------------------------------------ moldura */
+
+.cabecalho {
+    -fx-background-color: -cor-primaria;
+}
+
+.titulo-app {
+    -fx-text-fill: white;
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+}
+
+
+/* barra de ferramentas: uma área por botão, ícone em cima e texto embaixo */
+.botao-area {
+    -fx-background-color: transparent;
+    -fx-text-fill: white;
+    -fx-font-size: 12px;
+    -fx-padding: 6 14 6 14;
+    -fx-background-radius: 4;
+    -fx-cursor: hand;
+}
+
+.botao-area:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.15);
+}
+
+/* área em que o operador está: o laranja de destaque (branco sobre ele: 5,09:1) */
+.botao-area.area-ativa {
+    -fx-background-color: -cor-destaque;
+}
+
+.botao-area .ikonli-font-icon {
+    -fx-icon-color: white;
+    -fx-icon-size: 24px;
+}
+
+/* menu do usuário: discreto, à direita (trocar senha e sair ficam aqui dentro) */
+.menu-usuario {
+    -fx-background-color: transparent;
+    -fx-text-fill: white;
+    -fx-cursor: hand;
+}
+
+.menu-usuario > .label {
+    -fx-text-fill: white;
+}
+
+.menu-usuario > .arrow-button > .arrow {
+    -fx-background-color: white;
+}
+
+.menu-usuario .ikonli-font-icon {
+    -fx-icon-color: white;
+    -fx-icon-size: 20px;
+}
+
+/* faixa abaixo da barra: situação do caixa sempre à vista */
+.faixa-situacao {
+    -fx-background-color: -cor-primaria-clara;
+    -fx-border-color: transparent transparent -cor-borda transparent;
+    -fx-font-size: 13px;
+}
+
+/* verde-escuro, e não o verde de sucesso: sobre a faixa clara o de sucesso dá 4,37:1 e reprova */
+.caixa-aberto {
+    -fx-text-fill: -cor-primaria;
+    -fx-font-weight: bold;
+}
+
+.caixa-fechado {
+    -fx-text-fill: -cor-texto-secundario;
+}
+
+/* ------------------------------------------------------------ blocos */
+
+.cartao {
+    -fx-background-color: -cor-superficie;
+    -fx-border-color: -cor-borda;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-padding: 24;
+}
+
+.titulo-secao {
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+}
+
+.rotulo-grupo {
+    -fx-text-fill: -cor-texto-secundario;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+}
+
+.valor-destaque {
+    -fx-font-size: 28px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -cor-primaria;
+}
+
+.numero {
+    -fx-font-family: "Consolas", "Cascadia Mono", monospace;
+}
+
+/* ------------------------------------------------------------ botões (mesma altura nos três tipos) */
+
+.botao-primario,
+.botao-secundario,
+.botao-perigo {
+    -fx-min-height: 36px;
+    -fx-padding: 0 20 0 20;
+    -fx-background-radius: 4;
+    -fx-border-radius: 4;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+}
+
+.botao-primario {
+    -fx-background-color: -cor-destaque;
+    -fx-text-fill: white;
+}
+
+.botao-primario:hover {
+    -fx-background-color: -cor-destaque-escura;
+}
+
+.botao-secundario {
+    -fx-background-color: -cor-superficie;
+    -fx-border-color: -cor-primaria;
+    -fx-text-fill: -cor-primaria;
+}
+
+.botao-secundario:hover {
+    -fx-background-color: -cor-primaria-clara;
+}
+
+.botao-perigo {
+    -fx-background-color: -cor-erro;
+    -fx-text-fill: white;
+}
+
+/* foco visível pelo teclado em todos os botões (operador de caixa usa muito o teclado) */
+.botao-primario:focused,
+.botao-secundario:focused,
+.botao-perigo:focused {
+    -fx-border-color: -cor-texto;
+    -fx-border-width: 2;
+}
+
+/* ------------------------------------------------------------ mensagens */
+
+.status {
+    -fx-font-size: 15px;
+    -fx-text-alignment: center;
+}
+
+.status-sucesso,
+.mensagem-sucesso {
+    -fx-text-fill: -cor-sucesso;
+}
+
+.status-erro,
+.mensagem-erro {
+    -fx-text-fill: -cor-erro;
+}
+
+/* ------------------------------------------------------------ PDV */
+
+.campo-codigo {
+    -fx-font-size: 18px;
+    -fx-pref-height: 44px;
+}
+
+.tabela-pdv {
+    -fx-font-size: 15px;
+}
+
+.tabela-pdv .table-row-cell:selected {
+    -fx-background-color: -cor-primaria;
+}
+
+.tabela-pdv .table-row-cell:selected .table-cell {
+    -fx-text-fill: white;
+}
+
+.painel-total {
+    -fx-background-color: -cor-superficie;
+    -fx-border-color: transparent transparent transparent -cor-borda;
+}
+
+/* o número mais importante da tela: grande e no verde de maior contraste */
+.total-pdv {
+    -fx-font-size: 36px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -cor-primaria;
+}
+
+.barra-atalhos {
+    -fx-background-color: -cor-primaria-clara;
+    -fx-border-color: -cor-borda transparent transparent transparent;
+    -fx-font-size: 13px;
+}
+
+.tecla {
+    -fx-font-family: "Consolas", "Cascadia Mono", monospace;
+    -fx-font-weight: bold;
+    -fx-background-color: -cor-superficie;
+    -fx-border-color: -cor-texto-secundario;
+    -fx-border-radius: 3;
+    -fx-background-radius: 3;
+    -fx-padding: 0 5 0 5;
+}
+
+.botao-forma {
+    -fx-min-width: 120px;
+    -fx-min-height: 48px;
+    -fx-font-size: 15px;
+    -fx-background-color: -cor-superficie;
+    -fx-border-color: -cor-primaria;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+    -fx-text-fill: -cor-primaria;
+    -fx-cursor: hand;
+}
+
+.botao-forma:selected {
+    -fx-background-color: -cor-destaque;
+    -fx-border-color: -cor-destaque;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+}
+
+.dica {
+    -fx-font-size: 12px;
+    -fx-text-fill: -cor-texto-secundario;
+}
+
+/* ------------------------------------------------------------ listas de cadastro */
+
+/* no estoque mínimo ou abaixo: texto vermelho de erro (6,08:1 sobre branco) */
+.table-row-cell.linha-repor .table-cell {
+    -fx-text-fill: -cor-erro;
+}
+
+/* fora de linha: cinza e itálico (8,35:1 sobre branco: continua legível) */
+.table-row-cell.linha-inativa .table-cell {
+    -fx-text-fill: -cor-texto-secundario;
+    -fx-font-style: italic;
+}
+
+/* linha selecionada: fundo verde-escuro e texto branco (9,48:1), com ou sem foco na tabela.
+   Sem fixar o fundo, o JavaFX usa cinza claro quando a tabela perde o foco e o texto branco some. */
+.table-row-cell:selected {
+    -fx-background-color: -cor-primaria;
+}
+
+.table-row-cell:selected .table-cell {
+    -fx-text-fill: white;
+}

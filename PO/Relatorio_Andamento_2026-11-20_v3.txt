@@ -1,0 +1,350 @@
+﻿# Caixa Ferragem — Relatório de andamento (v3)
+
+**Data:** 20/11/2026 · **Concluído:** fases 0 a 3 e a 4a (login e caixa na tela) · **Testes:** 176 passando · **Substitui:** a v2 (que ia só até o domínio, com 97 testes)
+
+Este relatório explica o que existe no projeto, como rodar e, principalmente, **como responder às três perguntas do professor**: quem é responsável por cada regra, onde mudar se a regra mudar, e como testar que ela é respeitada (seção 4). Ele complementa o *Documento de Projeto*.
+
+---
+
+## 1. Resumo
+
+| Fase | O que entrega | Situação |
+|---|---|---|
+| 0 — Base executável | Maven, conexão com PostgreSQL, tabelas criadas pelo Flyway, janela JavaFX | Concluída |
+| 1 — Domínio | Regras de negócio em Java puro: produto, cliente, venda, fiado, caixa | Concluída |
+| 2 — Casos de uso | Uma classe por ação do usuário (`RegistrarVenda`, `PagarDebito`…), testada com repositórios em memória | Concluída |
+| 3 — Banco de dados | Repositórios JDBC, transação com rollback, administrador inicial, testes contra PostgreSQL real | Concluída e testada no PC do grupo |
+| 4a — Telas: login e caixa | Login, troca de senha obrigatória, abrir caixa, suprimento, sangria, fechamento | Concluída e testada no PC do grupo |
+| 4b, 4c, 4d — Telas | PDV, fiado, cadastros de produto/cliente/operador | Próximas |
+| 5 — Acabamento | JavaDoc HTML, README final, capturas, commits | Pendente |
+
+**Situação real para a apresentação:** o programa abre, conecta no banco, faz login e controla o caixa. **Ainda não dá para vender pela tela**: a venda, o fiado e os cadastros já funcionam e estão testados por baixo (casos de uso e banco), mas as telas deles são as fases 4b a 4d.
+
+---
+
+## 2. Como rodar na sua máquina
+
+### Pré-requisitos
+
+- **JDK 21 ou superior** e **IntelliJ IDEA**.
+- **Servidor PostgreSQL 16 ou superior.** O pgAdmin é só o visualizador; o servidor aparece nele como "PostgreSQL 16/17/18".
+
+### Passo 1 — usuário e bancos (uma única vez)
+
+No pgAdmin, Query Tool, **um comando de cada vez** (selecione a linha e F5):
+
+```sql
+CREATE USER caixa WITH PASSWORD 'caixa';
+```
+
+```sql
+CREATE DATABASE caixa OWNER caixa;
+```
+
+```sql
+CREATE DATABASE caixa_teste OWNER caixa;
+```
+
+- `caixa` é o banco do programa. `caixa_teste` é **só dos testes**: eles apagam tudo a cada execução, por isso nunca podem usar o banco `caixa`.
+- Rodar comandos juntos gera `CREATE DATABASE cannot run inside a transaction block`. Rode separado.
+- Não crie tabelas à mão: o Flyway cria (V1), insere o administrador (V2) e acrescenta a troca de senha (V3).
+
+### Passo 2 — rodar o programa
+
+1. IntelliJ → **File → Open** → pasta `caixa-ferragem`. Se alguém mexeu nos arquivos por fora: **File → Reload All from Disk** e, na aba Maven, **Reload All Maven Projects**.
+2. Execute `br.com.ferragem.Main`. Na primeira vez aparece "Preparando o banco de dados…" e em seguida o **login**.
+3. Entre com **`admin` / `admin123`**. O sistema **obriga a trocar a senha** antes de liberar qualquer tela (essa senha está publicada no README, então não é segredo).
+4. Depois da troca, abre a tela do **Caixa**.
+
+### Passo 3 — rodar os testes
+
+Botão direito em **`src/test/java`** → **Run 'All Tests'**. Esperado: **176 passando**. Se o banco `caixa_teste` não existir, os 15 testes de banco aparecem como **skipped** (pulados), não como falha.
+
+### Problemas comuns
+
+| Sintoma | Causa | Solução |
+|---|---|---|
+| Tela vermelha, "Connection … refused" | PostgreSQL parado ou porta errada | Inicie o serviço; confira `config.properties` |
+| "password authentication failed for user caixa" | Usuário `caixa` não criado | Passo 1 |
+| "database caixa does not exist" | Faltou o `CREATE DATABASE` | Passo 1 |
+| 15 testes "skipped" | Falta o banco `caixa_teste` | Passo 1, terceiro comando |
+| Texto vermelho com `INFO: Migrating schema…` ou `WARNING: sun.misc.Unsafe…` | Flyway e JavaFX escrevem na saída de erro | Ignorar: não é erro |
+| Alteração "sumiu" | O IntelliJ regravou a versão antiga que tinha aberta | Reload All from Disk antes de editar |
+
+---
+
+## 3. Estrutura do projeto
+
+```
+src/main/java/br/com/ferragem/
+├── Main, ConfiguracaoAplicacao   monta tudo (composition root)
+├── CasosDeUso                    pacote com os 21 casos de uso prontos
+├── dominio/          REGRAS. Não conhece banco nem tela.
+│   ├── comum/        Decimais
+│   ├── excecao/      RegraNegocioException + 21 exceções
+│   └── modelo/       produto/ cliente/ venda/ fiado/ caixa/
+├── aplicacao/        O QUE O USUÁRIO FAZ
+│   ├── casodeuso/    RegistrarVenda, PagarDebito, AbrirCaixa,
+│   │                 FecharCaixa, TrocarSenha … (uma classe por ação)
+│   ├── porta/        interfaces: ProdutoRepository, CaixaRepository,
+│   │                 GerenciadorTransacao, HashSenha, ProcessadorCartao…
+│   └── pagamento/    PagamentoDinheiro, PagamentoPix, PagamentoCartao,
+│                     PagamentoFiado (estratégias)
+├── infraestrutura/   COMO É FEITO (troca sem mexer nas regras)
+│   ├── config/       ConfiguracaoBanco
+│   ├── persistencia/ FabricaConexao, MigradorBanco
+│   │   └── jdbc/     ContextoJdbc + 7 repositórios PostgreSQL
+│   ├── seguranca/    HashSenhaPbkdf2
+│   └── pagamento/    ProcessadorCartaoSimulado
+└── apresentacao/     TELAS (JavaFX)
+    ├── AplicacaoJavaFX, Navegador
+    ├── comum/        Tarefas, Avisos, Formatos, Formulario, Sessao, Tema
+    └── tela/         TelaLogin, TelaTrocaSenha, TelaCaixa, DialogoValor
+src/main/resources/   config.properties · ui/tema.css
+                      db/migration/V1, V2, V3
+src/test/java/        mesma divisão (20 classes de teste)
+```
+
+**Regra de dependência (a ideia central da arquitetura):** as setas só apontam para dentro. `apresentacao` → `aplicacao` → `dominio`. A `infraestrutura` implementa as interfaces de `aplicacao.porta`. O `dominio` não importa nada de fora. Consequência prática: dá para testar todas as regras sem banco e sem tela, e trocar o banco sem mexer em nenhuma regra.
+
+---
+
+## 4. As três perguntas do professor
+
+### 4.1 Quem é responsável por cada regra, onde mudar, como testar
+
+| Regra | Responsável (classe) | Camada | Se mudar, mexer em… | Teste |
+|---|---|---|---|---|
+| RN01 Fiado só para cliente cadastrado e ativo | `Venda.finalizar()`, `FormaPagamento.exigeCliente()` | Domínio | Esses dois métodos | CT-09, CT-10 |
+| RN02 Margem = (venda − custo) ÷ venda | `Produto.calcularMargem()` | Domínio | Só esse método | CT-01 |
+| RN03 Código, código de barras e CPF únicos | `CadastrarProduto`, `AtualizarProduto`, `CadastrarCliente` + `UNIQUE` no banco | Caso de uso + banco | Casos de uso e a migração | CT-20, CT-21 |
+| RN04 Não vender além do estoque (soma do carrinho) | `Produto.baixarEstoque()`, `Venda.adicionarItem()`, revalidado em `RegistrarVenda` + `CHECK` | Domínio + caso de uso + banco | `baixarEstoque()` | CT-05, CT-07, CT-11; teste de estoque relido |
+| RN05 Não existe venda sem itens | `Venda.finalizar()` | Domínio | Só esse método | CT-06 |
+| RN06 Quantidade conforme o tipo (un/kg/m) | `verificarFracionamento()` de cada subclasse de `Produto` | Domínio (polimorfismo) | Só a subclasse afetada | CT-03, CT-04; `ProdutoContratoTest` |
+| RN07 Venda atômica (tudo ou nada) | `RegistrarVenda` + `ContextoJdbc` | Caso de uso + infraestrutura | Só o `ContextoJdbc` (mecanismo) | CT-12; teste de rollback + mutação |
+| RN08 Vender só com caixa aberto; um caixa por vez | `RegistrarVenda`, `PagarDebito`, `AbrirCaixa` + índice único no banco | Caso de uso + banco | Casos de uso | CT-13, CT-24 |
+| RN09 Dinheiro: recebido ≥ total; troco | `PagamentoDinheiro.processar()` | Aplicação (estratégia) | Só essa classe | CT-14, CT-15 |
+| RN10 Pagamento de dívida: 0 < valor ≤ saldo | `Debito.registrarPagamento()` | Domínio | Só esse método | CT-16 a CT-18 |
+| RN11 Saldo devedor = soma dos saldos | `ContaFiado.calcularSaldoDevedor()` | Domínio | Só esse método | CT-19 |
+| RN12 Não excluir cliente que deve | `ExcluirCliente` | Caso de uso | Só esse caso de uso | CT-22 |
+| RN13 Preço abaixo do custo só com administrador | `Venda.alterarPrecoUnitario()`, `PerfilOperador` | Domínio | Esses dois | CT-23 |
+| RN14 Conferência do fechamento | `SessaoCaixa`, `ResultadoFechamento.calcular()` | Domínio | `ResultadoFechamento` | CT-25 |
+| RN15 Preços válidos | Construtor e `Produto.alterarPrecos()` + `CHECK` | Domínio + banco | Domínio e migração | CT-02 |
+| RN16 Nome obrigatório; CPF válido | Construtores de `Cliente` e `Cpf` | Domínio | Esses construtores | CT-21, CT-27 |
+| Novo: senha definida por outra pessoa deve ser trocada | `Operador`, `TrocarSenha`, `Navegador` | Domínio + caso de uso + tela | `TrocarSenha` (regras), `Navegador` (fluxo) | `OperadorCasosDeUsoTest` |
+
+> **Nomes que mudaram em relação ao Documento de Projeto:** `ConsultarDebitosCliente` virou `ConsultarContaFiado`; `JdbcGerenciadorTransacao` virou `ContextoJdbc`. Se o professor procurar pelo nome antigo, é essa a correspondência. (O documento será atualizado no acabamento.)
+
+### 4.2 Como explicar "se o requisito mudar, sei onde mexer"
+
+Use exemplos concretos, não teoria:
+
+- **"Fiado agora tem limite de crédito por cliente"** → nova verificação em `PagamentoFiado.processar()` e um campo no `Cliente`. `RegistrarVenda`, as outras formas de pagamento e as telas não mudam.
+- **"Aceitar vale-refeição"** → nova classe `PagamentoValeRefeicao` implementando `ProcessadorPagamento`, registrada no `ConfiguracaoAplicacao`. Nenhuma classe existente é alterada (**aberto/fechado**).
+- **"Trocar PostgreSQL por outro banco"** → novas classes no lugar de `infraestrutura/persistencia/jdbc`. Domínio, casos de uso e os 161 testes que não usam banco continuam iguais (**inversão de dependência**).
+- **"Usar uma maquininha de cartão de verdade"** → nova implementação de `ProcessadorCartao`. Hoje é `ProcessadorCartaoSimulado`.
+- **"Mudar as cores"** → só `tema.css`.
+- **"Depois do login, ir direto para o PDV"** → só `Navegador`.
+
+### 4.3 Como testar que as regras são respeitadas
+
+São quatro tipos de teste, e cada um responde a uma pergunta diferente:
+
+| Tipo | Pergunta que responde | Exemplos | Qtd. |
+|---|---|---|---|
+| **Unidade** | A regra em si está certa? | `ProdutoTest`, `VendaTest`, `ContaFiadoTest`, `FormatosTest` | 90 |
+| **Contrato** (parametrizado) | Toda implementação de uma abstração respeita as mesmas regras? (Liskov) | `ProdutoContratoTest` (3 tipos de produto), `ProcessadorPagamentoContratoTest` | 24 |
+| **Caso de uso** (com repositórios em memória) | O fluxo completo está certo, e uma recusa não deixa nada pela metade? | `RegistrarVendaTest`, `PagarDebitoTest` | 47 |
+| **Integração** (PostgreSQL real) | Grava e lê de verdade? Sobrevive a fechar o programa? A transação desfaz? | `FluxoCaixaJdbcTest`, `RepositoriosJdbcTest` | 15 |
+
+90 + 24 + 47 + 15 = **176**. Os totais por classe estão na seção 8.
+
+**Teste de mutação manual (vale citar):** para provar que o teste de rollback detecta o problema, o `ContextoJdbc` foi sabotado de propósito (o rollback trocado por commit). O teste **reprovou**, e o código original foi restaurado. Um teste que passa de qualquer jeito não prova nada.
+
+---
+
+## 5. Fase 2 — casos de uso
+
+Um **caso de uso** é uma classe para cada ação do usuário: `RegistrarVenda`, `PagarDebito`, `AbrirCaixa`, `RegistrarSangria`, `FecharCaixa`, `CadastrarProduto`, `AjustarEstoque`, `CadastrarCliente`, `ExcluirCliente`, `AutenticarOperador`… Ele coordena: busca os dados, chama as regras do domínio e manda gravar.
+
+- **Responsabilidade única (S do SOLID):** cada classe faz uma coisa. Quem quer entender a venda lê `RegistrarVenda`, e não um "Gerenciador" gigante.
+- **Validar antes de alterar:** todo caso de uso confere tudo primeiro e só depois muda algo. Por exemplo, `RegistrarVenda` confere o carrinho, o caixa aberto, o estoque **relido do banco** e o pagamento; só então baixa o estoque e grava. Se algo for recusado, nada mudou.
+- **Portas (D do SOLID):** os casos de uso dependem de **interfaces** (`ProdutoRepository`, `CaixaRepository`, `GerenciadorTransacao`…), nunca do PostgreSQL. Nos testes, recebem versões **em memória** (`ProdutoRepositoryEmMemoria` etc.). No programa, recebem as versões JDBC.
+- **Interfaces pequenas (I do SOLID):** `ConsultaProdutos` (só buscar) é separada de `ProdutoRepository` (buscar e gravar); `RegistroVendas` (gravar) é separada de `HistoricoVendas` (consultar). Cada caso de uso só enxerga o que usa.
+- **Estratégias de pagamento (O do SOLID):** `PagamentoDinheiro` (troco), `PagamentoPix`, `PagamentoCartao` (pede autorização à operadora) e `PagamentoFiado`, todas implementando `ProcessadorPagamento`. `RegistrarVenda` não tem `if (forma == DINHEIRO)`: pede ao catálogo o processador da forma escolhida.
+- **Senha:** guardada como hash **PBKDF2-SHA256 com 600.000 iterações** e sal aleatório (recomendação da OWASP). Login inexistente e senha errada dão **a mesma mensagem**, para não revelar quais logins existem.
+- **Relógio injetado (`Clock`):** os casos de uso não chamam `LocalDateTime.now()` direto; recebem um relógio. Nos testes, o relógio é fixo e as datas são previsíveis.
+
+---
+
+## 6. Fase 3 — banco de dados
+
+### 6.1 Transação: `ContextoJdbc`
+
+Abre a conexão, desliga o auto-commit e a guarda num **`ThreadLocal`**. Todo repositório chamado durante a operação usa **essa mesma conexão**, então tudo entra na mesma transação sem o caso de uso precisar passar a conexão adiante. Terminou bem: **commit**. Qualquer exceção (regra ou falha técnica): **rollback**, e a exceção original sobe.
+
+### 6.2 Os 7 repositórios
+
+`ProdutoRepositoryJdbc`, `ClienteRepositoryJdbc`, `OperadorRepositoryJdbc`, `CaixaRepositoryJdbc`, `DebitoRepositoryJdbc`, `VendaRepositoryJdbc` e `MovimentoEstoqueRepositoryJdbc`. Todos usam **`PreparedStatement`** (os valores vão separados do SQL, o que impede SQL injection).
+
+### 6.3 Decisões que vocês precisam saber defender
+
+- **Reconstrução pelos métodos do domínio, sem setters para o banco.** O `Debito` é recriado e cada pagamento gravado é "repetido" com `registrarPagamento()`; a `SessaoCaixa` é reaberta e cada movimento é repetido. O saldo nunca é lido pronto: é recalculado pela regra. Se alguém alterar o banco à mão e deixar uma sangria maior que a gaveta, a **leitura falha** em vez de carregar um objeto inválido. Há um teste que corrompe o banco de propósito.
+- **`Venda.restaurar()` é a única mudança no domínio.** Reconstruir uma venda antiga com `adicionarItem()` checaria o estoque **de hoje** para uma venda de meses atrás. A fábrica `restaurar` deixa explícito que um fato histórico não passa de novo pelas regras de criação.
+- **`SELECT … FOR UPDATE`:** dentro da transação, a leitura de um produto **trava a linha**. Duas vendas simultâneas não leem "10 em estoque" ao mesmo tempo (problema da atualização perdida).
+- **Movimentos só são acrescentados:** o repositório conta quantos já estão gravados e insere só os novos. Nunca altera nem apaga movimento (trilha de auditoria).
+- **Histórico em uma consulta só** (venda + itens + produtos com JOIN), em vez de uma consulta por venda.
+
+### 6.4 Migrações
+
+| Arquivo | O que faz |
+|---|---|
+| `V1__criar_tabelas.sql` | As 10 tabelas, com `CHECK`, `UNIQUE` e índice único parcial (um caixa aberto) como defesa em profundidade |
+| `V2__administrador_inicial.sql` | Cria `admin` com o **hash** de `admin123` (a senha em si não está no arquivo) |
+| `V3__troca_de_senha.sql` | Coluna `trocar_senha`; marca o `admin` só se ele ainda estiver com a senha padrão |
+
+**Nunca editar uma migração já aplicada:** o Flyway guarda um checksum de cada arquivo e se recusa a iniciar se ele mudar. Mudança no banco = novo arquivo `V4__…`.
+
+---
+
+## 7. Fase 4a — telas de login e caixa
+
+### 7.1 Fluxo
+
+`Main` → tela "Preparando o banco…" (migrações em segundo plano) → **Login** → se a senha foi definida por outra pessoa, **Defina a sua senha** (sem menu e sem "Cancelar") → **Caixa**.
+
+- **Caixa fechado:** campo do troco inicial e "Abrir caixa".
+- **Caixa aberto:** quem abriu e quando, **dinheiro que deve estar na gaveta**, recebido por forma de pagamento (sem fiado, que não é dinheiro) e os botões **Suprimento**, **Sangria** e **Fechar caixa**.
+- **Fechamento:** o operador digita o que contou; aparece "O dinheiro confere", "Faltou R$ X" ou "Sobrou R$ X".
+
+### 7.2 Como as telas foram construídas
+
+| Classe | Papel | Por quê |
+|---|---|---|
+| `Navegador` | Decide qual tela aparece; monta cabeçalho e menu | As telas não criam umas às outras. Mudar o fluxo = mudar só ele |
+| `Tarefas` | Roda banco e hash de senha fora da thread da tela | A janela não congela (critério 8 da rubrica) e evita clique duplo |
+| `Avisos` | Erro de regra em vermelho na própria tela; falha técnica em janela + log | O operador corrige e segue; o grupo investiga pelo log |
+| `Formatos` | "R$ 1.234,50", data, e lê "10,50" / "1.234,50" / "R$ 25" | Assunto de tela, fora do domínio. Tem teste próprio |
+| `Tema` + `tema.css` | Visual único, aplicado também às janelas de diálogo | Mudar a identidade visual = mudar um arquivo |
+
+**A tela não calcula nada:** o saldo vem de `SessaoCaixa.calcularSaldoEsperado()` e a conferência, de `ResultadoFechamento`. As telas só leem o que o usuário digitou, chamam o caso de uso e mostram o resultado.
+
+### 7.3 Falha encontrada e corrigida antes da entrega
+
+Durante a troca de senha **obrigatória**, o botão "Trocar senha" do cabeçalho abria a versão **opcional** da tela, que tem "Cancelar"; o "Cancelar" levava ao caixa **sem trocar a senha**. Correção: toda navegação para dentro do sistema passa por uma checagem única no `Navegador` (`exigirSenhaPropria()`). Bom exemplo de por que concentrar o fluxo num lugar só.
+
+---
+
+## 8. Testes (176)
+
+| Classe de teste | Qtd. | O que cobre |
+|---|---|---|
+| `ProdutoTest` | 21 | CT-01 a CT-05, margem, preços, estoque |
+| `ProdutoContratoTest` | 15 | 5 regras × 3 tipos de produto (Liskov) |
+| `CpfTest` / `ClienteTest` | 6 / 5 | CPF, value object, CT-27 |
+| `VendaTest` | 19 | CT-06 a CT-09, CT-23, carrinho misto |
+| `DebitoTest` / `ContaFiadoTest` | 7 / 9 | CT-16 a CT-19, distribuição do pagamento |
+| `SessaoCaixaTest` | 10 | CT-25, sangria limitada, quem fecha |
+| `RegistrarVendaTest` | 11 | CT-10 a CT-15, nada gravado quando recusa |
+| `PagarDebitoTest` | 7 | Compras selecionadas e valor livre, troco, recusa sem cobrar o cartão |
+| `CaixaCasosDeUsoTest` | 5 | CT-24, abrir, suprir, sangrar, fechar |
+| `ProdutoCasosDeUsoTest` | 10 | CT-20, estoque inicial, ajuste, inativação |
+| `ClienteCasosDeUsoTest` | 8 | CT-21, CT-22, busca por nome/CPF, excluir × inativar |
+| `OperadorCasosDeUsoTest` | 6 | Login, cadastro só por admin, troca de senha |
+| `ProcessadorPagamentoContratoTest` | 9 | As 4 formas de pagamento seguem o mesmo contrato |
+| `HashSenhaPbkdf2Test` | 4 | Formato, sal aleatório, hash corrompido |
+| `ConfiguracaoBancoTest` | 5 | Prioridade ambiente × arquivo, senha escondida |
+| `FormatosTest` | 4 | Leitura de valores digitados, R$ e data |
+| `RepositoriosJdbcTest` | 8 | Grava e relê cada entidade; CT-03 no banco; dado corrompido recusado |
+| `FluxoCaixaJdbcTest` | 7 | **CT-26**, CT-24 no banco, rollback, fiado, expediente, histórico |
+
+**Todos os 27 casos de teste do Documento de Projeto (CT-01 a CT-27) estão implementados.**
+
+**CT-26 (persistência):** o teste grava com um conjunto de objetos e confere com outro, criado do zero sobre o mesmo banco. É o equivalente a fechar e reabrir o programa: se os dados aparecem, vieram do banco, e não da memória.
+
+---
+
+## 9. Decisões do grupo
+
+| Decisão | Escolha | Onde está |
+|---|---|---|
+| CPF nas telas | Só no cadastro e no perfil do cliente | `Cliente.toString()`; telas |
+| Pagamento de fiado | Cliente escolhe as compras; abate da mais antiga para a mais nova | `ContaFiado` |
+| Compra quitada | Sai da lista de pendentes, fica no histórico | `ContaFiado.getQuitadas()` |
+| Sangria maior que a gaveta | Recusada | `SessaoCaixa.registrarSangria()` |
+| Quem fecha o caixa | Quem abriu ou um administrador | `SessaoCaixa.fechar()` |
+| Preço abaixo do custo | Só administrador | `Venda.alterarPrecoUnitario()` |
+| Banco | PostgreSQL; cartão, Pix e leitor simulados por interface | `infraestrutura` |
+| Senha do primeiro acesso | Troca obrigatória (admin padrão e operador cadastrado por outro) | `TrocarSenha`, `Navegador` |
+| Cor de destaque | Laranja escurecido `#B5501A` (o original reprovava em contraste) | `tema.css` |
+| Testes de banco | Banco separado `caixa_teste`, apagado a cada teste | `BancoDeTeste` |
+
+**Atalhos do PDV** (já combinados, entram na 4b): Enter adiciona · F1 legenda · F2 quantidade antes de bipar · F3 buscar produto · F4 cliente · F5 preço · F6 quantidade · ↑/↓ navegar · Delete remover · F8 cancelar venda · F9 pagamento (1 Dinheiro, 2 Pix, 3 Crédito, 4 Débito, 5 Fiado) · Esc fecha diálogo.
+
+---
+
+## 10. Conceitos de Java novos nestas fases
+
+| Conceito | Onde |
+|---|---|
+| Interface como contrato e várias implementações | `ProcessadorPagamento`; repositórios em memória × JDBC |
+| Interface funcional e lambda | `AcaoSql`, `OperacaoTransacional`, `Tarefas.Trabalho` |
+| Genéricos (`<T>`) | `GerenciadorTransacao.executar()`, `Tarefas.emSegundoPlano()` |
+| `ThreadLocal` | `ContextoJdbc` (uma conexão por thread) |
+| `try`-with-resources | Toda conexão, `PreparedStatement` e `ResultSet` |
+| `PreparedStatement` com `?` | Todos os repositórios (proteção contra SQL injection) |
+| Text blocks (`"""`) | SQL dos repositórios |
+| Rethrow preciso (`catch (Throwable)` + `throw`) | `ContextoJdbc.executar()` |
+| Classe anônima | Repositório de caixa "que quebra" no teste de rollback |
+| `record` aninhado | `RegistrarVenda.Comando`, `Venda.ItemRegistrado`, `DialogoValor.Lancamento` |
+| Threads e `Task` do JavaFX | `Tarefas`, preparação do banco |
+| `final class` | `Navegador`, `Formulario` (evita o aviso `this-escape`) |
+| Supressão de exceção (`addSuppressed`) | Falha no rollback não esconde o erro original |
+
+---
+
+## 11. Perguntas para estudar
+
+1. O que acontece, linha a linha, se a gravação do caixa falhar **depois** de o estoque já ter sido baixado? Como o teste prova isso?
+2. Por que os casos de uso dependem de `ProdutoRepository` (interface) e não de `ProdutoRepositoryJdbc`? Que princípio é esse?
+3. Como se acrescenta uma forma de pagamento nova? Quais classes **não** mudam?
+4. Por que o repositório não lê o saldo do fiado direto da coluna `valor_pago`?
+5. Para que serve o `FOR UPDATE`? Dê um exemplo do problema que ele evita.
+6. Por que existe `Venda.restaurar()` em vez de reconstruir a venda com `adicionarItem()`?
+7. Por que a senha é guardada como hash e não criptografada? Por que 600.000 iterações?
+8. Por que login inexistente e senha errada dão a mesma mensagem?
+9. Por que as telas usam `Tarefas` para chamar o banco? O que aconteceria sem isso?
+10. Onde está a regra "sangria não pode passar do dinheiro da gaveta"? Se o professor pedir para permitir com senha de administrador, onde você mexe?
+11. Por que nunca se edita a `V1__criar_tabelas.sql`?
+12. Qual a diferença entre o teste de `RegistrarVendaTest` e o de `FluxoCaixaJdbcTest`, se os dois testam venda?
+
+---
+
+## 12. Próximos passos e pendências
+
+| Etapa | Conteúdo |
+|---|---|
+| **4b — PDV** | Carrinho com leitor/código + Enter, todos os atalhos, legenda F1, tela de pagamento 1–5 com troco |
+| **4c — Fiado** | Tela do cliente com os 3 botões, "Mostrar compras quitadas", sem CPF |
+| **4d — Cadastros** | Produtos (com ajuste de estoque), clientes (CPF só aqui), operadores (só admin) |
+| **5 — Acabamento** | JavaDoc HTML, README com integrantes, capturas de tela, atualizar o Documento de Projeto, commits |
+
+**Pontos fracos conhecidos** (melhor saber antes que o professor aponte):
+
+- O movimento do caixa não guarda o número da venda numa coluna; a ligação é só pela descrição ("venda #12").
+- A tela ainda não foi testada automaticamente; o teste das telas é manual, pelo roteiro.
+- O Documento de Projeto ainda tem os atalhos antigos e os nomes de classe antigos (seção 4.1).
+
+**Commits** (deixados para o final, como o grupo decidiu; fazer um por etapa):
+
+```
+feat: fase 0 - esqueleto executavel (Maven, JavaFX, PostgreSQL, Flyway)
+feat: Produto e subclasses com testes CT-01 a CT-05
+feat: Cliente, Cpf, Venda e ItemVenda com testes
+refactor: dominio organizado em subpacotes; Decimais centraliza precisao
+feat: fiado (Debito, ContaFiado) e caixa (SessaoCaixa, Operador) com testes
+feat: fase 2 - casos de uso, portas e estrategias de pagamento
+feat: fase 3 - repositorios JDBC, transacao e testes de integracao
+feat: fase 4a - login, troca de senha obrigatoria e telas do caixa
+docs: relatorios de andamento para o grupo
+```

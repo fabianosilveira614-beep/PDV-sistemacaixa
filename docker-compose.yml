@@ -1,0 +1,20 @@
+services:
+  banco:
+    image: postgres:16
+    container_name: caixa-ferragem-db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-caixa}
+      POSTGRES_USER: ${POSTGRES_USER:-caixa}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-caixa}
+    ports:
+      - "${POSTGRES_PORTA:-5432}:5432"
+    volumes:
+      - dados-caixa:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-caixa} -d ${POSTGRES_DB:-caixa}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  dados-caixa:

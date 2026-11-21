@@ -1,0 +1,308 @@
+﻿# Caixa Ferragem — Relatório de andamento (v2)
+
+**Data:** 20/11/2026 · **Concluído:** fase 0 (base executável) e fase 1 (domínio completo) · **Testes:** 97 passando · **Substitui:** a v1 do mesmo dia (que cobria só até `Produto`)
+
+Este relatório resume tudo o que existe no projeto, como rodar na sua máquina, o que cada parte faz e as decisões que o grupo tomou, para que todos consigam explicar o código na apresentação. Ele complementa o *Documento de Projeto* (requisitos, regras RN01–RN16, arquitetura, plano de testes).
+
+---
+
+## 1. Resumo
+
+| Fase | O que entrega | Situação |
+|---|---|---|
+| 0 — Base executável | Projeto Maven, conexão com PostgreSQL, criação automática das 10 tabelas (Flyway), janela JavaFX | Concluída e testada no PC do grupo |
+| 1 — Domínio | Todas as regras de negócio em Java puro, sem banco nem tela: produtos, clientes, carrinho/venda, fiado e caixa | Concluída, 97 testes |
+| 2 — Casos de uso | `RegistrarVenda`, `PagarDebito`, `AbrirCaixa`, `FecharCaixa`… com repositórios em memória | Próxima |
+| 3 — Repositórios JDBC | Gravar e ler do PostgreSQL | Pendente |
+| 4 — Telas | PDV, clientes, fiado, produtos, caixa | Pendente |
+| 5 — Acabamento | Visual, JavaDoc HTML, README final, capturas | Pendente |
+
+**Importante para a apresentação:** as regras de negócio **já estão em Java e testadas**, mas ainda **não há tela** para usá-las, exceto a janela inicial que conecta no banco. Quem liga domínio, banco e tela são as fases 2 a 4.
+
+---
+
+## 2. Como rodar na sua máquina
+
+### Pré-requisitos
+
+- **JDK 21 ou superior** e **IntelliJ IDEA** (que já traz o Maven).
+- **Servidor PostgreSQL 16 ou superior.** O **pgAdmin não é o banco**, é só o programa para visualizar. Se em *Servers* aparecer "PostgreSQL 16/17/18" e ele conectar, está certo. Se não, instale em <https://www.postgresql.org/download/windows/> (o instalador traz os dois; anote a senha do `postgres` e mantenha a porta 5432).
+
+### Passo 1 — criar usuário e banco (uma única vez)
+
+No pgAdmin: clique no banco **postgres** → **Tools → Query Tool**. Execute **um comando de cada vez** (selecione a linha e aperte **F5**):
+
+```sql
+CREATE USER caixa WITH PASSWORD 'caixa';
+```
+
+```sql
+CREATE DATABASE caixa OWNER caixa;
+```
+
+> Executar os dois juntos gera `CREATE DATABASE cannot run inside a transaction block`. Basta rodar separado.
+
+O projeto usa um usuário próprio (e não o `postgres`) pelo **princípio do menor privilégio**: o `caixa` só manda no banco `caixa`.
+
+### Passo 2 — abrir e rodar
+
+1. IntelliJ → **File → Open** → pasta `caixa-ferragem`.
+2. Execute `br.com.ferragem.Main`. **Esperado:** faixa verde e *"Banco de dados conectado. Migrações aplicadas agora: 1."* (nas próximas vezes: *"conectado e atualizado"*).
+3. Testes: botão direito em **`src/test/java`** → **Run 'All Tests'**. Devem passar **97**. Atenção: rodando só uma pasta (por exemplo `dominio.modelo`), aparecem menos testes, porque os de `infraestrutura` ficam de fora.
+
+### Problemas comuns
+
+| Sintoma | Causa | Solução |
+|---|---|---|
+| Tela vermelha, "Causa: Connection … refused" | PostgreSQL não está rodando nessa porta | Inicie o serviço ou confira a porta em `config.properties` |
+| "Causa: password authentication failed for user caixa" | Usuário `caixa` não criado | Passo 1 |
+| "Causa: database caixa does not exist" | Faltou o `CREATE DATABASE` | Passo 1 |
+| `WARNING: sun.misc.Unsafe…` em vermelho | Aviso interno do JavaFX 21 em JDKs novos | Ignorar |
+| `INFO: Migrating schema…` em vermelho | O Flyway escreve na saída de erro | Ignorar (é sucesso) |
+| Alteração "sumiu" depois de alguém mexer nos arquivos por fora | O IntelliJ regravou a versão que tinha aberta | Antes de editar, use **File → Reload All from Disk** |
+
+---
+
+## 3. Estrutura do projeto
+
+```
+caixa-ferragem/
+├── pom.xml  ·  docker-compose.yml  ·  README.md
+├── PO/                            relatórios para o grupo
+└── src/
+    ├── main/java/br/com/ferragem/
+    │   ├── Main.java              ponto de entrada
+    │   ├── ConfiguracaoAplicacao  composition root (monta as dependências)
+    │   ├── apresentacao/          AplicacaoJavaFX
+    │   ├── dominio/
+    │   │   ├── comum/             Decimais (precisão do dinheiro)
+    │   │   ├── excecao/           base abstrata + 13 exceções de negócio
+    │   │   └── modelo/
+    │   │       ├── produto/  Produto (abstrata), ProdutoUnidade,
+    │   │       │             ProdutoKg, ProdutoMetro, UnidadeMedida
+    │   │       ├── cliente/  Cliente, Cpf
+    │   │       ├── venda/    Venda, ItemVenda, FormaPagamento,
+    │   │       │             StatusVenda
+    │   │       ├── fiado/    Debito, PagamentoDebito, ContaFiado,
+    │   │       │             PagamentoAplicado, StatusDebito
+    │   │       └── caixa/    SessaoCaixa, MovimentoCaixa, Operador,
+    │   │                     PerfilOperador, ResultadoFechamento,
+    │   │                     TipoMovimentoCaixa, StatusCaixa,
+    │   │                     SituacaoFechamento
+    │   └── infraestrutura/
+    │       ├── config/        ConfiguracaoBanco
+    │       └── persistencia/  FabricaConexao, MigradorBanco,
+    │                          PersistenciaException
+    ├── main/resources/   config.properties
+    │                     db/migration/V1__criar_tabelas.sql
+    │                     ui/tema.css
+    └── test/java/...     mesma divisão de pacotes (9 classes de teste)
+```
+
+**Por que o domínio é dividido por assunto (produto, cliente, venda, fiado, caixa)?** Com mais de 20 classes, uma pasta só fica difícil de navegar. Cada subpacote corresponde a uma parte do sistema, e quem cuida do fiado sabe exatamente onde mexer. `Venda` e `ItemVenda` ficam juntas de propósito: os métodos que alteram um item só são visíveis dentro do pacote, e assim só a `Venda` mexe no carrinho.
+
+**Por que `fiado` é separado de `FormaPagamento.FIADO`?** `FormaPagamento.FIADO` é só a escolha no fechamento da venda (dura um instante). O pacote `fiado` é a **conta que o cliente fica devendo**, que continua existindo depois da venda, com pagamentos parciais em outros dias e regras próprias (RN10, RN11).
+
+**Regra de dependência:** o `dominio` não importa nada de banco nem de JavaFX. Por isso os 92 testes do domínio rodam sem banco e sem tela.
+
+---
+
+## 4. Fase 0 — base executável (resumo)
+
+Ao apertar Run: **`Main`** → JavaFX cria **`AplicacaoJavaFX`** → `init()` monta as dependências em **`ConfiguracaoAplicacao`** → **`ConfiguracaoBanco`** lê `config.properties` (variáveis de ambiente `CAIXA_DB_*` têm prioridade) → `start()` desenha a janela → uma **`Task`** em segundo plano chama **`MigradorBanco`** → o **Flyway** aplica `V1__criar_tabelas.sql` se ainda não rodou → a janela mostra verde (sucesso) ou vermelho com a **causa raiz** do erro.
+
+- **`Main` separada:** sem ela, o Java recusa iniciar ("JavaFX runtime components are missing").
+- **`Task`:** a janela não congela enquanto o banco responde (critério 8 da rubrica).
+- **`V1__criar_tabelas.sql`** nunca é editado depois de aplicado; mudança no banco = novo `V2__...sql`. As constraints do banco repetem várias regras (fiado exige cliente, um caixa aberto por vez, estoque ≥ 0, pagamento ≤ débito) como **defesa em profundidade**.
+- **Mensagem de erro:** usa `\n` (quebra de linha) para separar erro, causa e dica. Sem eles o texto sai grudado (`…caixaCausa: …refused.Verifique…`).
+
+---
+
+## 5. Fase 1 — o domínio
+
+### 5.1 Produto (RN02, RN04, RN06, RN15)
+
+- **`Produto`** é **abstrata**: não existe produto "sem unidade" na loja.
+- **`ProdutoUnidade`** (só inteiros), **`ProdutoKg`** (até 3 casas = gramas), **`ProdutoMetro`** (até 2 casas = centímetros) sobrescrevem `verificarFracionamento()`.
+- `validarQuantidade()` é **`final`** na classe mãe: verifica "maior que zero" e chama `verificarFracionamento()` da subclasse. A regra comum mora na mãe, a específica na filha, e a mãe chama a filha sem saber qual é (**ligação dinâmica**).
+- **Estoque** só muda por `baixarEstoque()` / `reporEstoque()`; **não existe setter**. Se recusar, nada muda.
+- **Margem** = (venda − custo) ÷ venda × 100, calculada a cada chamada, nunca guardada.
+- O produto **nasce com estoque zero**; a mercadoria entra por `reporEstoque()`. (Na primeira versão o estoque vinha no construtor e o compilador alertou `this-escape`: o construtor da mãe chamava um método da filha antes de ela estar pronta.)
+
+### 5.2 Cliente e Cpf (RN12, RN16)
+
+- **`Cpf`** é um **value object**: imutável, só existe se for válido (confere os dígitos verificadores) e dois `Cpf` com os mesmos números são **iguais** (`equals` e `hashCode` sobrescritos).
+- **`Cliente`**: nome obrigatório; CPF e telefone opcionais; pode ser inativado (exclusão lógica).
+- **Privacidade (decisão do grupo):** o CPF só aparece no **cadastro** e no **perfil** do cliente, nunca em fiado, PDV, listas ou comprovantes (**princípio da necessidade da LGPD**). Por isso o `toString()` do `Cliente` mostra só id e nome. O `toString` vai para logs, e o CPF não pode vazar por ali.
+
+### 5.3 Venda e ItemVenda (RN01, RN04, RN05, RN06, RN13)
+
+- **`Venda`** é a dona do carrinho: adiciona, altera, remove, totaliza e finaliza. `getItens()` devolve cópia **somente leitura**.
+- **Polimorfismo de verdade:** o carrinho aceita parafuso, prego e corrente juntos e chama `produto.validarQuantidade()` sem saber o tipo.
+- O mesmo produto bipado duas vezes vira **uma linha** com a soma, e o estoque é conferido pela **soma do carrinho**.
+- **`ItemVenda` copia o preço** no momento da venda: mudar o preço do produto depois não muda vendas passadas.
+- **Preço alterado no balcão (RN13):** o operador pode dar desconto, **mas não abaixo do custo**; abaixo do custo só com perfil **ADMINISTRADOR**.
+- **`finalizar()`**: exige itens (RN05) e, se for fiado, cliente ativo (RN01). **Não baixa estoque**: baixar estoque, registrar no caixa e criar o débito, tudo junto ou nada, é trabalho do caso de uso `RegistrarVenda` (fase 2), numa transação.
+
+### 5.4 Fiado (RN10, RN11)
+
+- **`Debito`** = uma compra fiado. **Valor pago, saldo e status** (ABERTO → PARCIAL → QUITADO) são **calculados** a partir da lista de pagamentos, então nunca ficam inconsistentes.
+- `registrarPagamento()` recusa valor ≤ 0, mais de 2 casas, maior que o saldo, compra já quitada, e "pagar fiado com fiado".
+- **`ContaFiado`** = a tela de fiado do cliente em código:
+  - **total devido** = soma dos saldos (RN11), sempre calculado (não fica guardado no `Cliente`);
+  - **pendentes** em ordem da mais antiga para a mais nova; **quitadas** ficam no histórico (não são apagadas);
+  - três formas de pagar, iguais aos botões da tela: `pagarSelecionadas`, `pagarValorLivre`, `quitarTudo`.
+- **Regra de distribuição (decisão do grupo):** o valor é aplicado **da compra mais antiga para a mais nova, só entre as escolhidas**. Exemplo: compras #102 (R$ 100), #131 (R$ 80) e #158 (R$ 45); selecionando #102 e #131 e pagando R$ 150, a #102 é quitada, a #131 fica com saldo de R$ 30 e a #158 não muda. Total devido: R$ 75.
+- O valor **nunca passa** da soma das selecionadas (o excedente em dinheiro é troco, não crédito).
+
+### 5.5 Caixa (RN08, RN14)
+
+- **`SessaoCaixa`**: abre com o dinheiro da gaveta (≥ 0); registra vendas, recebimentos de fiado, suprimentos e sangrias; fecha com conferência.
+- **Dinheiro esperado na gaveta** = abertura + entradas em dinheiro + suprimentos − sangrias. **Pix e cartão não entram** (não estão na gaveta). Venda fiado nem gera movimento.
+- **Fechamento:** diferença = contado − esperado → **QUEBRA** (falta), **SOBRA** ou **CONFERE**, mais o total recebido por forma de pagamento (para conferir com maquininha e extrato do Pix). Depois de fechado, nada mais entra.
+- **Decisões do grupo:** **sangria maior que o dinheiro da gaveta é recusada**; o caixa pode ser fechado por **quem abriu ou por um administrador**.
+- **`Operador`**: login (comparado sem diferenciar maiúsculas), perfil e **hash** da senha, nunca a senha em texto. O `toString` não mostra o hash.
+- **`MovimentoCaixa`** é imutável: um movimento errado se corrige com outro movimento, nunca editando o anterior.
+
+### 5.6 Os 4 pilares da POO — onde mostrar
+
+| Pilar | Onde | Como explicar |
+|---|---|---|
+| **Abstração** | `abstract class Produto`, `abstract class RegraNegocioException` | Não existe produto sem unidade nem "erro genérico" |
+| **Herança** | Subclasses de `Produto` com `super(...)`; 13 exceções herdando de `RegraNegocioException` | Reaproveitam validação e tratamento |
+| **Polimorfismo** | `validarQuantidade()` → `verificarFracionamento()` de cada tipo; carrinho com tipos misturados; `ProdutoContratoTest` | O mesmo código responde conforme o tipo real do objeto (ligação dinâmica) |
+| **Encapsulamento** | Nenhum setter de estoque; `ItemVenda` só alterável pela `Venda`; listas somente leitura; saldo e status calculados | O estado só muda por métodos que validam |
+
+**Pergunta provável:** *"As subclasses de Produto só diferem em casas decimais; por que não um enum?"* Resposta: cada tipo tem regra e mensagem próprias e pode ganhar comportamento novo; um tipo novo entra **sem alterar** as classes existentes (princípio aberto/fechado). Não responda "porque o trabalho pedia".
+
+---
+
+## 6. Decisões tomadas pelo grupo nesta etapa
+
+| Decisão | Escolha | Onde está no código |
+|---|---|---|
+| CPF nas telas | Só no cadastro e no perfil do cliente | `Cliente.toString()`; telas da fase 4 |
+| Pagamento de fiado | Cliente escolhe as compras; o valor abate da mais antiga para a mais nova entre as escolhidas | `ContaFiado` |
+| Compra quitada | Sai da lista de pendentes, mas fica no histórico ("Mostrar compras quitadas") | `ContaFiado.getQuitadas()` |
+| Sangria maior que a gaveta | Recusada | `SessaoCaixa.registrarSangria()` |
+| Quem fecha o caixa | Quem abriu ou um administrador | `SessaoCaixa.fechar()` |
+| Preço abaixo do custo | Só administrador | `Venda.alterarPrecoUnitario()` |
+| Organização do domínio | Subpacotes por assunto | `dominio/modelo/*` |
+
+---
+
+## 7. Telas já especificadas (implementação na fase 4)
+
+### 7.1 Fiado do cliente
+
+```
+┌─ Fiado — Seu Zé ──────────────────────────────────────────────────────────┐
+│  [ ]  Data    Venda  Itens                 Valor    Pago    Saldo  Status │
+│  [ ]  05/11   #102   Cimento, prego 2kg   100,00    0,00   100,00  Aberto │
+│  [ ]  12/11   #131   Corrente 5m           80,00    0,00    80,00  Aberto │
+│  [ ]  18/11   #158   Cadeado, parafusos    45,00    0,00    45,00  Aberto │
+│                                                                           │
+│  [ ] Mostrar compras quitadas            TOTAL DEVIDO:     R$ 225,00      │
+│                                                                           │
+│  [ Pagar selecionadas ]   [ Pagar valor livre ]   [ Quitar tudo ]         │
+└───────────────────────────────────────────────────────────────────────────┘
+```
+
+- Só o **nome** do cliente (sem CPF). Cada linha pode ser expandida para mostrar os itens comprados.
+- **Pagar selecionadas:** habilitado com ao menos uma compra marcada; sugere a soma dos saldos marcados.
+- **Pagar valor livre:** distribui entre todas as pendentes, da mais antiga para a mais nova.
+- **Quitar tudo:** já preenche o total devido.
+- **Mostrar compras quitadas:** só filtra a lista; quitadas aparecem em cinza, sem caixa de seleção.
+- Com total devido zero, os três botões ficam desabilitados e aparece "Nenhuma compra pendente".
+
+### 7.2 Atalhos de teclado do PDV
+
+| Tecla | Ação |
+|---|---|
+| (leitor ou digitação) + **Enter** | Adiciona produto pelo código de barras ou código; o campo fica sempre com foco |
+| **F1** | Legenda de atalhos |
+| **F2** | Informar quantidade antes de bipar |
+| **F3** | Buscar produto (por nome ou código) |
+| **F4** | Identificar ou cadastrar cliente |
+| **F5** | Alterar preço do item selecionado |
+| **F6** | Alterar quantidade do item selecionado |
+| **↑ / ↓** | Navegar entre os itens |
+| **Delete** | Remover item selecionado (com confirmação) |
+| **F8** | Cancelar a venda (com confirmação) |
+| **F9** | Ir para o pagamento |
+| Pagamento: **1** Dinheiro · **2** Pix · **3** Crédito · **4** Débito · **5** Fiado · **Enter** confirma · **Esc** volta | |
+| **Esc** | Fechar diálogo ou cancelar a ação |
+
+Não existe um padrão único de teclas no mercado (cada fabricante de PDV usa o seu), então o importante é ser consistente e mostrar a legenda numa barra fixa no rodapé. Uso por teclado vale nota no critério 8 da rubrica.
+
+---
+
+## 8. Testes (97)
+
+| Classe de teste | Qtd. | O que cobre |
+|---|---|---|
+| `ProdutoTest` | 21 | CT-01 a CT-05, margem, preços, quantidades, estoque, id |
+| `ProdutoContratoTest` | 15 | 5 regras × 3 tipos de produto (substituição de Liskov) |
+| `CpfTest` | 6 | CPF válido/inválido, pontuação, igualdade de value object |
+| `ClienteTest` | 5 | CT-27, opcionais, atualização, inativação |
+| `VendaTest` | 19 | CT-06 a CT-09, CT-23, carrinho com tipos misturados, estoque pela soma, preço copiado, venda finalizada imutável |
+| `DebitoTest` | 7 | CT-16 a CT-18, dívida gerada da venda fiado |
+| `ContaFiadoTest` | 9 | CT-19, distribuição da mais antiga, exemplo #102/#131 com R$ 150, quitar tudo |
+| `SessaoCaixaTest` | 10 | CT-25, sobra/confere, Pix fora da gaveta, sangria limitada, quem pode fechar |
+| `ConfiguracaoBancoTest` | 5 | Prioridade ambiente × arquivo, senha escondida |
+
+**Casos CT do documento de projeto já implementados:** CT-01 a CT-09, CT-16 a CT-19, CT-21 (parte do CPF), CT-23, CT-25 e CT-27. **Faltam** os que dependem de casos de uso ou banco (CT-10 a CT-15, CT-20, CT-22, CT-24, CT-26): fases 2 e 3.
+
+---
+
+## 9. Conceitos de Java (onde encontrar)
+
+| Conceito | Onde |
+|---|---|
+| Classe e método abstratos | `Produto`, `verificarFracionamento()` |
+| Herança, `super(...)`, `@Override` | Subclasses de `Produto`; exceções |
+| `final` em métodos e classes | `Produto.baixarEstoque()`; `final class Cpf`, `Decimais` |
+| Visibilidade de pacote | Métodos de alteração do `ItemVenda` |
+| Enum com atributos e comportamento | `FormaPagamento.exigeCliente()`, `PerfilOperador`, `TipoMovimentoCaixa.getSinal()` |
+| `record` e construtor compacto | `PagamentoDebito`, `MovimentoCaixa`, `ResultadoFechamento`, `PagamentoAplicado` |
+| Value object, `equals`/`hashCode` | `Cpf` |
+| Exceções verificadas × não verificadas | `RegraNegocioException` × `PersistenciaException`, `IllegalStateException` |
+| `Optional` | `getId()`, `getCliente()`, `getCpf()` |
+| `BigDecimal`, `RoundingMode`, `compareTo` | Preços, totais, saldos |
+| Streams, `reduce`, `EnumMap`, `Comparator` | Totais da venda, saldo devedor, recebido por forma, ordenação do fiado |
+| `switch` com setas | `ResultadoFechamento.calcular()` |
+| Coleções imutáveis (`List.copyOf`, `Map.copyOf`) | `getItens()`, `getPagamentos()`, `getMovimentos()` |
+| Testes parametrizados, `@BeforeEach` | `ProdutoContratoTest`, `VendaTest` |
+| Sequências de escape (`\n`, `\"`) | Mensagens de erro |
+
+---
+
+## 10. Perguntas para estudar
+
+1. Por que `Produto` é abstrata? Mostre um exemplo de polimorfismo no carrinho.
+2. Em `Produto corrente = new ProdutoMetro(...); corrente.validarQuantidade(1.355);`, qual método roda, em que ordem, e qual exceção sai? (Resposta: `Produto.validarQuantidade` → `ProdutoMetro.verificarFracionamento` por **ligação dinâmica** → `QuantidadeInvalidaException`.)
+3. Por que não existe `setQuantidadeEstoque()`? E por que `baixarEstoque()` é `final`?
+4. O que é um value object? Por que sobrescrever `hashCode` junto com `equals`?
+5. Por que o saldo do fiado é calculado e não guardado no `Cliente`?
+6. Por que `Venda.finalizar()` não baixa o estoque? Onde isso acontece?
+7. Por que Pix e cartão não entram no dinheiro esperado da gaveta?
+8. Por que o CPF não aparece no `toString()` do `Cliente`?
+9. Qual a diferença entre `record` e classe comum? Por que `MovimentoCaixa` é `record`?
+10. Se a loja quiser abater o fiado da compra **mais nova** primeiro, onde se muda? (Resposta: a ordenação dentro de `ContaFiado`.)
+
+---
+
+## 11. Próximos passos
+
+**Fase 2 — casos de uso:** `RegistrarVenda` (baixa estoque, registra no caixa e cria débito numa transação), `PagarDebito`, `AbrirCaixa`, `FecharCaixa`, `CadastrarProduto`, `CadastrarCliente`… com **repositórios em memória** nos testes. É onde ficam demonstrados os princípios de **segregação de interfaces (ISP)** e **inversão de dependência (DIP)** do SOLID.
+
+**Commits:** o grupo decidiu deixar para o final. Atenção: o Trabalho 1 exige *histórico de commits que permita acompanhar a evolução*. Quando chegar a hora, fazer **um commit por etapa**, não um único:
+
+```
+feat: fase 0 - esqueleto executavel (Maven, JavaFX, PostgreSQL, Flyway)
+feat: Produto e subclasses com testes CT-01 a CT-05
+feat: Cliente, Cpf, Venda e ItemVenda com testes
+refactor: dominio organizado em subpacotes; Decimais centraliza precisao
+feat: fiado (Debito, ContaFiado) e caixa (SessaoCaixa, Operador) com testes
+docs: relatorios de andamento para o grupo
+```
