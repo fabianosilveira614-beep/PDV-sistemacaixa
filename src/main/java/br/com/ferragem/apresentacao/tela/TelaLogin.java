@@ -14,6 +14,7 @@ import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.layout.Region;
 
 /**
  * Tela de entrada. Enter no campo de senha entra (botão padrão).
@@ -54,7 +55,7 @@ public class TelaLogin {
                 .campo("_Senha", senha);
         cartao = new VBox(16, titulo, formulario, entrar, mensagem);
         cartao.getStyleClass().add("cartao");
-        cartao.setMaxWidth(380);
+        cartao.setMaxSize(380, Region.USE_PREF_SIZE);
         Platform.runLater(login::requestFocus);
     }
 

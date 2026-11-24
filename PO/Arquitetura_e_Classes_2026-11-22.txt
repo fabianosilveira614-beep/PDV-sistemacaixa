@@ -1,0 +1,324 @@
+﻿# Caixa Ferragem — Arquitetura e classes
+
+**Data:** 22/11/2026 · **Código descrito:** o que está no PC do grupo hoje (167 arquivos Java, 215 testes, migrações V1 a V6) · **Para que serve:** estudar para a apresentação e responder às três perguntas do professor
+
+---
+
+## 1. A ideia em poucas linhas
+
+O sistema é dividido em **quatro camadas**, cada uma com um tipo de responsabilidade:
+
+| Camada | Pergunta que ela responde | Exemplo |
+|---|---|---|
+| **Domínio** | O que é verdade no negócio da ferragem? | "Não se vende mais do que há em estoque" (`Produto`) |
+| **Aplicação** | Em que ordem as coisas acontecem numa operação? | "Para vender: confere caixa, estoque e pagamento; depois grava, baixa e lança" (`RegistrarVenda`) |
+| **Infraestrutura** | Como se fala com o mundo de fora? | SQL do PostgreSQL, hash de senha, maquininha de cartão |
+| **Apresentação** | Como o operador vê e usa? | Telas JavaFX, teclas de atalho, mensagens |
+
+**A regra que sustenta tudo (regra da dependência):** as setas de dependência só apontam **para dentro**. A tela conhece os casos de uso; os casos de uso conhecem o domínio; **o domínio não conhece ninguém**. O banco de dados fica do lado de fora e é "plugado" por interfaces.
+
+Consequência prática, que já aconteceu neste projeto: **a tela do caixa foi refeita inteira e nenhum caso de uso nem teste mudou.**
+
+```
+    [ Apresentação ] ---> [ Aplicação ] ---> [ Domínio ]
+      telas JavaFX         casos de uso        regras puras
+                           portas (interfaces)     ^
+                                  ^                |
+                                  |                |
+                          [ Infraestrutura ] ------+
+                            JDBC, hash, cartão
+                     (implementa as portas da aplicação)
+
+    Seta = "depende de". Nenhuma seta sai do Domínio.
+    A ConfiguracaoAplicacao (raiz) liga as peças ao abrir o programa.
+```
+
+---
+
+## 2. Como as peças se ligam ao abrir o programa
+
+1. `Main` chama `Application.launch`, que inicia a `AplicacaoJavaFX`.
+2. Ainda antes de a janela abrir, a `ConfiguracaoAplicacao` lê a configuração do banco e o método `criarCasosDeUso()` monta **todos** os objetos do sistema:
+    - cria os repositórios JDBC, o hash de senha e as estratégias de pagamento;
+    - passa cada um para os casos de uso que precisam dele;
+    - devolve tudo num único objeto, o `CasosDeUso`.
+
+    Esse é o **único lugar** do código que escreve `new ...RepositoryJdbc(...)`. O nome técnico é *composition root* (raiz de composição).
+
+3. A janela abre com "Preparando o banco de dados…" e, em segundo plano, o `MigradorBanco` (Flyway) cria ou atualiza as tabelas.
+4. Terminada a migração, o `Navegador`, que recebeu o `CasosDeUso`, mostra a `TelaLogin`. Depois do login, mostra a barra de ferramentas e a área Caixa. Se o banco não responder, a janela mostra o erro em vez de fechar.
+
+**Por que isso importa:** como só a `ConfiguracaoAplicacao` conhece as classes concretas, trocar o PostgreSQL por outro banco seria escrever novos repositórios e mudar só ela. Os testes fazem exatamente isso: montam os mesmos casos de uso com repositórios em memória.
+
+---
+
+## 3. O caminho de uma venda, do teclado ao banco
+
+| Passo | Quem | O que acontece |
+|---|---|---|
+| 1 | `TelaPdv` | O operador digita o código e aperta Enter. A busca vai ao banco em segundo plano (`ConsultarProdutos`) |
+| 2 | `Venda` (domínio) | `adicionarItem` confere quantidade (`Produto.verificarFracionamento`) e estoque. O carrinho é um objeto `Venda` **em memória** |
+| 3 | `TelaPdv` → `DialogoPagamento` | F9 abre o pagamento; o operador escolhe a forma (1 a 5) |
+| 4 | `RegistrarVenda` | Recebe o carrinho e trabalha numa **cópia** (`Venda.copiar()`), para não estragar o carrinho da tela se algo falhar |
+| 5 | `ContextoJdbc` | Abre uma **transação**: daqui até o fim, ou tudo é gravado, ou nada é |
+| 6 | `RegistrarVenda` | **Primeiro tudo o que pode falhar, sem alterar nada:** caixa aberto? estoque de cada item relido do banco? pagamento aceito (`ProcessadorPagamento` da forma escolhida)? |
+| 7 | `RegistrarVenda` | **Depois, só gravações:** finaliza a venda, grava (`RegistroVendas`), baixa o estoque com trilha (`MovimentoEstoqueRepository`), lança no caixa ou cria a dívida de fiado (`DebitoRepository`) |
+| 8 | `ContextoJdbc` | `commit`. Se qualquer passo falhar, `rollback`: o banco volta como estava |
+| 9 | `TelaPdv` | Mostra o comprovante (troco, se for dinheiro) e começa um carrinho novo |
+
+**Frase para a apresentação:** "valida tudo antes, grava tudo depois, e tudo dentro de uma transação". Por isso uma venda nunca fica pela metade, por exemplo gravada mas sem baixar o estoque.
+
+---
+
+## 4. Domínio (`dominio`, 53 arquivos)
+
+As regras do negócio. Não usa JavaFX, SQL nem nenhuma biblioteca: só Java puro. Por isso é a parte mais fácil de testar.
+
+### 4.1 Produto (`modelo/produto`)
+
+| Classe | Tipo | Responsabilidade |
+|---|---|---|
+| `Produto` | classe **abstrata** | Código, nome, preços, estoque, estoque mínimo, ativo. Regras de preço (`alterarPrecos`), de estoque (`baixarEstoque`, `reporEstoque`, `temEstoqueSuficiente`) e de reposição (`precisaRepor`) |
+| `ProdutoUnidade` | subclasse | Vendido em peças inteiras: não aceita 2,5 martelos |
+| `ProdutoKg` | subclasse | Vendido por peso: aceita até 3 casas (2,350 kg) |
+| `ProdutoMetro` | subclasse | Vendido por comprimento: aceita até 2 casas (1,35 m) |
+| `FabricaProduto` | fábrica | Cria a subclasse certa a partir da unidade escolhida no cadastro |
+| `UnidadeMedida` | enum | UNIDADE, KG, METRO |
+| `MovimentoEstoque` | record | Uma entrada ou saída de estoque, com motivo e data: a trilha de auditoria |
+| `TipoMovimentoEstoque` | enum | Saída por venda, entrada de compra, ajuste de contagem, perda |
+
+**Onde está a herança:** cada subclasse implementa `verificarFracionamento` do seu jeito. Quem chama (a `Venda`) não sabe nem precisa saber se é kg ou unidade: isso é **polimorfismo**.
+
+### 4.2 Venda (`modelo/venda`)
+
+| Classe | Tipo | Responsabilidade |
+|---|---|---|
+| `Venda` | classe | O carrinho: itens, cliente opcional, total. Controla os próprios itens (`adicionarItem`, `alterarQuantidade`, `alterarPrecoUnitario`, `removerItem`) e a finalização (`verificarPodeFinalizar`, `finalizar`). `copiar()` e `restaurar()` servem ao caso de uso e ao banco |
+| `ItemVenda` | classe | Uma linha: produto, quantidade, **preço e custo copiados no momento da venda**, subtotal e lucro bruto |
+| `FormaPagamento` | enum | DINHEIRO, PIX, CREDITO, DEBITO, FIADO |
+| `StatusVenda` | enum | EM_ABERTO → FINALIZADA (só nesse sentido) |
+
+### 4.3 Caixa (`modelo/caixa`)
+
+| Classe | Tipo | Responsabilidade |
+|---|---|---|
+| `SessaoCaixa` | classe | Um expediente: abertura com troco, suprimentos, sangrias, recebimentos, fechamento com conferência. Calcula o dinheiro esperado na gaveta |
+| `MovimentoCaixa` | record | Uma movimentação. Imutável: erro se corrige com outro movimento, nunca apagando |
+| `TipoMovimentoCaixa` | enum | Cada tipo sabe se o dinheiro entra ou sai |
+| `StatusCaixa` | enum | ABERTO → FECHADO |
+| `ResultadoFechamento` | record | A conferência: esperado, contado, diferença |
+| `SituacaoFechamento` | enum | CONFERE, QUEBRA (falta dinheiro) ou SOBRA |
+| `Operador` | classe | Quem usa o sistema: login, hash da senha, perfil, ativo, troca de senha obrigatória |
+| `PerfilOperador` | enum | OPERADOR ou ADMINISTRADOR |
+
+### 4.4 Cliente e fiado (`modelo/cliente`, `modelo/fiado`)
+
+| Classe | Tipo | Responsabilidade |
+|---|---|---|
+| `Cliente` | classe | Nome, CPF opcional, telefone, ativo. Só cliente ativo compra fiado |
+| `Cpf` | classe (*value object*) | Um CPF sempre válido: confere os dígitos verificadores ao ser criado; dois `Cpf` com os mesmos números são iguais |
+| `Debito` | classe | Uma compra fiado: valor, pagamentos feitos, saldo. A situação (aberto, parcial, quitado) é **calculada** a partir dos pagamentos, nunca definida à mão |
+| `ContaFiado` | classe | O "caderno de fiado" do cliente: todas as compras, o total devido e a regra de abatimento (da compra mais antiga para a mais nova) |
+| `PagamentoDebito` | record | Um pagamento: valor, forma, data |
+| `PagamentoAplicado` | record | Quanto de um recebimento caiu em cada compra |
+| `StatusDebito` | enum | ABERTO, PARCIAL, QUITADO |
+
+### 4.5 Orçamento, exceções e utilitários
+
+| Classe | Responsabilidade |
+|---|---|
+| `Orcamento` | Retrato do carrinho num momento (itens, preços do dia, cliente, atendente). Não é venda: não mexe em estoque nem caixa |
+| `Decimais` | Casas decimais de dinheiro e quantidade, num lugar só |
+| `RegraNegocioException` | Base de **todas** as exceções de regra (checked). As 23 filhas dizem qual regra foi violada: `EstoqueInsuficienteException`, `CaixaFechadoException`, `FiadoNaoPermitidoException`, `CpfInvalidoException`, `PrecoInvalidoException`… |
+
+**Por que exceção checked:** o compilador obriga quem chama a tratar a regra violada. A tela sabe que toda `RegraNegocioException` é uma mensagem para o operador (texto vermelho), e que qualquer outra é falha técnica (janela de erro + log).
+
+---
+
+## 5. Aplicação (`aplicacao`, 63 arquivos)
+
+Organiza **o que acontece em cada operação**. Não sabe se a tela é JavaFX nem se o banco é PostgreSQL: fala com o mundo de fora só por **interfaces** (as portas).
+
+### 5.1 Casos de uso (`casodeuso`: 38 casos de uso + 4 classes auxiliares)
+
+Cada caso de uso é uma classe com um método `executar`. É a resposta direta para "quem é o responsável por esta operação?".
+
+| Área | Casos de uso |
+|---|---|
+| Acesso | `AutenticarOperador`, `TrocarSenha` |
+| Operadores (administrador) | `CadastrarOperador`, `ListarOperadores`, `AtualizarOperador`, `RedefinirSenha`, `DesativarOperador`, `ReativarOperador` + `Administracao` (regras comuns) |
+| Caixa | `AbrirCaixa`, `ConsultarCaixaAberto`, `RegistrarSuprimento`, `RegistrarSangria`, `FecharCaixa` |
+| Venda | `RegistrarVenda`, `ConsultarVenda` |
+| Produtos | `ConsultarProdutos` (PDV), `ListarProdutos` (cadastro), `CadastrarProduto`, `AtualizarProduto`, `AjustarEstoque`, `InativarProduto`, `ReativarProduto`, `ExcluirProduto` |
+| Clientes e fiado | `ConsultarClientes`, `ListarClientes`, `CadastrarCliente`, `AtualizarCliente`, `ExcluirCliente`, `ConsultarContaFiado`, `ConsultarHistoricoCliente`, `PagarDebito` + `CpfOpcional` |
+| Relatórios | `RelatorioVendas` + `ResumoVendas` (as contas), `RelatorioFiadoEmAberto`, `RelatorioEstoqueBaixo` + `Periodo` (validação comum) |
+| Orçamento | `SalvarOrcamento`, `ListarOrcamentos`, `ExcluirOrcamento`, `CarregarOrcamento` |
+
+**Padrão de todos:** recebe um `Comando` (um `record` com os dados da tela) ou parâmetros simples; **valida antes de alterar**; lança `RegraNegocioException` se uma regra for violada; usa transação quando grava em mais de uma tabela.
+
+### 5.2 Portas (`porta`, 14 interfaces)
+
+São as tomadas onde a infraestrutura se encaixa. O caso de uso pede a interface; quem decide a implementação é a `ConfiguracaoAplicacao`.
+
+| Interface | Para quê |
+|---|---|
+| `ProdutoRepository` / `ConsultaProdutos` | Gravar e ler produtos / só ler (o PDV só precisa ler) |
+| `RegistroVendas` / `HistoricoVendas` | Gravar vendas / consultar vendas já feitas |
+| `CaixaRepository`, `ClienteRepository`, `DebitoRepository`, `OperadorRepository`, `OrcamentoRepository`, `MovimentoEstoqueRepository` | Gravação e leitura de cada assunto |
+| `GerenciadorTransacao` + `OperacaoTransacional` | "Faça isto numa transação" |
+| `HashSenha` | Gerar e conferir hash de senha |
+| `ProcessadorCartao` | Falar com a maquininha |
+
+**Interfaces separadas de propósito** (`ConsultaProdutos` × `ProdutoRepository`, `RegistroVendas` × `HistoricoVendas`): cada caso de uso recebe só o que usa. É o princípio da segregação de interfaces.
+
+### 5.3 Pagamento (`pagamento`, padrão *Strategy*)
+
+| Classe | Responsabilidade |
+|---|---|
+| `ProcessadorPagamento` | Interface: `forma()` e `processar(total, valorRecebido)` |
+| `PagamentoDinheiro` | Confere o valor entregue (no máximo 2 casas) e calcula o troco |
+| `PagamentoPix` | Confirmação manual (simulado) |
+| `PagamentoCartao` | Pede autorização à operadora pela porta `ProcessadorCartao`; serve para crédito e débito |
+| `PagamentoFiado` | Não recebe dinheiro agora: a dívida é criada pelo `RegistrarVenda` |
+| `ProcessadoresPagamento` | Catálogo: dada a forma, devolve a estratégia certa (`para(forma)`) |
+| `ResultadoPagamento` | Valor recebido, troco e código de autorização |
+
+**Por que é Strategy:** o `RegistrarVenda` não tem um `if (forma == DINHEIRO) ... else if (PIX) ...`. Ele pede `processadores.para(forma).processar(...)`. Uma forma nova (ex.: vale-presente) é **uma classe nova**, sem mexer no `RegistrarVenda`: princípio aberto/fechado.
+
+---
+
+## 6. Infraestrutura (`infraestrutura`, 17 arquivos)
+
+Implementa as portas com tecnologia de verdade. É a única camada que importa `java.sql`.
+
+| Classe | Responsabilidade |
+|---|---|
+| `ConfiguracaoBanco` | URL, usuário e senha: do `config.properties` ou das variáveis `CAIXA_DB_*` |
+| `FabricaConexao` | Abre conexões com o PostgreSQL |
+| `MigradorBanco` | Roda o Flyway: aplica `V1`…`V6` que ainda não rodaram |
+| `ContextoJdbc` | Implementa `GerenciadorTransacao`. Guarda a conexão da transação numa `ThreadLocal`, faz `commit` ou `rollback`. Todo repositório pega a conexão por ele (`usar`) |
+| `AcaoSql` | Interface funcional: "um trecho que usa uma conexão" |
+| `Mapeadores` | Converte linha do banco ↔ objeto do domínio, num lugar só (mesmas colunas em todos os repositórios) |
+| `ProdutoRepositoryJdbc`, `VendaRepositoryJdbc`, `CaixaRepositoryJdbc`, `ClienteRepositoryJdbc`, `DebitoRepositoryJdbc`, `OperadorRepositoryJdbc`, `OrcamentoRepositoryJdbc`, `MovimentoEstoqueRepositoryJdbc` | O SQL de cada assunto. Usam `SELECT ... FOR UPDATE` dentro das transações para duas operações não mexerem no mesmo dado ao mesmo tempo |
+| `PersistenciaException` | Falha técnica do banco (unchecked): **não** é regra de negócio |
+| `HashSenhaPbkdf2` | Hash de senha com PBKDF2-SHA256 e sal aleatório, que já vem no JDK |
+| `ProcessadorCartaoSimulado` | Maquininha falsa que aprova tudo, para a apresentação |
+
+**Recriar objetos do banco pelo domínio:** ao ler uma compra fiado, o repositório não "seta" o saldo; ele **refaz os pagamentos** pelo método do domínio. Assim um dado inconsistente no banco é recusado na leitura, em vez de virar um objeto inválido.
+
+---
+
+## 7. Apresentação (`apresentacao`, 31 arquivos)
+
+Telas JavaFX. **Não decidem regra nenhuma:** montam o pedido, chamam o caso de uso e mostram o resultado.
+
+### 7.1 Estrutura e utilitários
+
+| Classe | Responsabilidade |
+|---|---|
+| `AplicacaoJavaFX` | Abre a janela, migra o banco, monta os casos de uso |
+| `Navegador` | Troca de tela; barra de ferramentas (Caixa, Produtos, Clientes, Relatórios, Operadores); menu do usuário; faixa com a situação do caixa. Guarda o PDV aberto para o carrinho não se perder |
+| `Sessao` | Quem está logado. Existe só na apresentação |
+| `Tarefas` | Roda o trabalho demorado (banco, hash) fora da thread da tela, para a janela não congelar |
+| `Avisos` | Regra fixa de mensagens: regra de negócio em vermelho na própria tela; falha técnica em janela e no log |
+| `Formatos` | Moeda, quantidade e data no padrão brasileiro; leitura de "1.234,50" |
+| `Formulario`, `Tema`, `Icones` | Grade de formulário padrão; folha de estilo única (`tema.css`); único lugar que conhece a biblioteca de ícones |
+
+### 7.2 Telas e janelas
+
+| Área | Classes |
+|---|---|
+| Acesso | `TelaLogin`, `TelaTrocaSenha` |
+| Caixa | `TelaPdv`, `AtalhoPdv` (todas as teclas num `enum`), `DialogoPagamento`, `DialogoGaveta`, `DialogoBusca` (F3 e F4), `DialogoValor` |
+| Orçamento | `DialogoOrcamentos`, `ImpressaoOrcamento` |
+| Produtos | `TelaProdutos`, `DialogoProduto`, `DialogoAjusteEstoque` |
+| Clientes | `TelaClientes`, `TelaPerfilCliente`, `DialogoCliente`, `PainelItensVenda` |
+| Relatórios | `TelaRelatorios`, `SeletorPeriodo` |
+| Operadores | `TelaOperadores`, `DialogoOperador`, `DialogoSenhaProvisoria` |
+
+**Padrão das janelas de cadastro:** o botão Salvar não fecha a janela sozinho. Ele chama o caso de uso em segundo plano; se uma regra recusar, a mensagem aparece **dentro da janela** e o que foi digitado não se perde.
+
+---
+
+## 8. Conceitos de POO e onde mostrar cada um
+
+| Conceito | Onde aparece |
+|---|---|
+| **Encapsulamento** | `Venda` não expõe a lista de itens para alteração: só por `adicionarItem`, `removerItem`… que aplicam as regras. `Debito` não tem `setSaldo` |
+| **Herança** | `Produto` (abstrata) → `ProdutoUnidade`, `ProdutoKg`, `ProdutoMetro`; `RegraNegocioException` → 23 exceções |
+| **Polimorfismo** | `verificarFracionamento` diferente em cada produto; `ProcessadorPagamento` com 4 implementações; repositório JDBC e repositório em memória atrás da mesma interface |
+| **Abstração** | As 14 portas: o caso de uso sabe **o que** precisa, não **como** é feito |
+| **Classe abstrata × interface** | `Produto` é abstrata (compartilha estado e regras); `ProcessadorPagamento` é interface (só um contrato) |
+| **Value object** | `Cpf`: imutável, sempre válido, igualdade pelo valor |
+| **Record** | `MovimentoCaixa`, `PagamentoDebito`, todos os `Comando`: dados imutáveis sem código repetido |
+| **Enum com comportamento** | `TipoMovimentoCaixa` sabe se o dinheiro entra ou sai; `AtalhoPdv` guarda tecla, nome e descrição |
+| **Exceções** | Hierarquia checked para regras; unchecked (`PersistenciaException`) para falha técnica |
+
+---
+
+## 9. SOLID e padrões de projeto
+
+| Princípio ou padrão | Exemplo no código |
+|---|---|
+| **S** — responsabilidade única | Um caso de uso por operação; `ResumoVendas` só calcula; `Mapeadores` só converte |
+| **O** — aberto/fechado | Forma de pagamento nova = classe nova, sem mexer no `RegistrarVenda` |
+| **L** — substituição de Liskov | Testes de contrato: `ProdutoContratoTest` e `ProcessadorPagamentoContratoTest` rodam as mesmas regras em todas as subclasses |
+| **I** — segregação de interfaces | `ConsultaProdutos` × `ProdutoRepository`; `RegistroVendas` × `HistoricoVendas` |
+| **D** — inversão de dependência | Casos de uso dependem das portas; a `ConfiguracaoAplicacao` injeta as implementações. O `SalvarOrcamento` só recebe o repositório de orçamentos, então não tem como mexer em estoque |
+| *Strategy* | Formas de pagamento |
+| *Factory* | `FabricaProduto` |
+| *Repository* | Todas as portas `...Repository` |
+| *Composition root* | `ConfiguracaoAplicacao` |
+| *Command* (dados de entrada) | Os `record Comando` de cada caso de uso |
+
+---
+
+## 10. Como os testes se encaixam (215)
+
+| Tipo | O que testa | Precisa de banco? |
+|---|---|---|
+| **Domínio** (`ProdutoTest`, `VendaTest`, `SessaoCaixaTest`, `ContaFiadoTest`, `CpfTest`…) | As regras isoladas | Não |
+| **Contrato** (`ProdutoContratoTest`, `ProcessadorPagamentoContratoTest`) | Toda subclasse ou estratégia cumpre o mesmo contrato | Não |
+| **Casos de uso** (`RegistrarVendaTest`, `PagarDebitoTest`, `RelatorioCasosDeUsoTest`, `OrcamentoCasosDeUsoTest`…) | A orquestração, com repositórios **em memória** no lugar do banco | Não |
+| **Integração** (`RepositoriosJdbcTest`, `FluxoCaixaJdbcTest`) | O SQL de verdade, no banco `caixa_teste`, apagado a cada teste | Sim |
+
+**Por que os repositórios em memória são possíveis:** os casos de uso dependem de interfaces (inversão de dependência). No teste, a mesma classe `RegistrarVenda` recebe um `ProdutoRepositoryEmMemoria` em vez do JDBC, e roda em milissegundos.
+
+**Testes de mutação feitos à mão:** nas regras importantes, a regra foi sabotada de propósito e o teste reprovou. É a prova de que o teste realmente vigia a regra.
+
+---
+
+## 11. Receita para as três perguntas do professor
+
+**"Quem é o responsável por esta regra? Qual classe, qual componente?"**
+
+1. A regra fala de **um conceito** (produto, venda, CPF, caixa)? Está no **domínio**, na classe desse conceito.
+2. Fala de **uma operação** com vários passos (vender, receber fiado, fechar caixa)? Está no **caso de uso** com o nome da operação.
+3. Fala de **como aparece** (tecla, cor, mensagem)? Está na **apresentação**.
+
+**"Se o requisito mudar amanhã, onde eu mexo?"**
+
+Na classe responsável, e o resto não muda. Exemplos:
+
+- tecla do pagamento → `AtalhoPdv`;
+- forma de pagamento nova → nova classe em `pagamento` + uma linha na `ConfiguracaoAplicacao`;
+- ordem de abatimento do fiado → `ContaFiado`;
+- cor do sistema → `tema.css`;
+- trocar de banco → novos repositórios + `ConfiguracaoAplicacao`.
+
+**"Como eu testo se a regra está sendo respeitada?"**
+
+Cada regra tem um teste com o nome da classe responsável (`ProdutoTest`, `RegistrarVendaTest`…). Ele monta a situação, executa e confere o resultado, ou confere que a exceção certa foi lançada. Na apresentação: abrir o teste, rodar (verde), sabotar a regra, rodar de novo (vermelho).
+
+---
+
+## 12. Números
+
+| Item | Quantidade |
+|---|---|
+| Arquivos Java do programa | 167 (domínio 53 · aplicação 63 · infraestrutura 17 · apresentação 31 · raiz 3) |
+| Casos de uso | 38 (+ 4 classes auxiliares: `Administracao`, `CpfOpcional`, `Periodo`, `ResumoVendas`) |
+| Portas (interfaces) | 14 |
+| Exceções de regra de negócio | 24 (a base + 23) |
+| Testes automatizados | 215 |
+| Migrações do banco | 6 (V1 a V6) |

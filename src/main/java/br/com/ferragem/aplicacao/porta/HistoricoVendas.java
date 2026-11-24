@@ -15,6 +15,22 @@ import java.util.Optional;
 public interface HistoricoVendas {
 
     /**
+     * Venda do relatório por período, com o nome de quem a registrou.
+     *
+     * @param venda    venda finalizada, com cliente e itens
+     * @param operador nome do operador que registrou a venda
+     */
+    record VendaDoPeriodo(Venda venda, String operador) {
+    }
+
+    /**
+     * @param inicio primeiro dia do período (inclusive)
+     * @param fim    último dia do período (inclusive)
+     * @return todas as vendas do período, da mais recente para a mais antiga
+     */
+    List<VendaDoPeriodo> buscarPorPeriodo(LocalDate inicio, LocalDate fim);
+
+    /**
      * @param cliente cliente consultado
      * @param inicio  primeiro dia do período (inclusive)
      * @param fim     último dia do período (inclusive)

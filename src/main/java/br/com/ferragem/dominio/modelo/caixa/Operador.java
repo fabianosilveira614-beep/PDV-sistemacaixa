@@ -12,15 +12,19 @@ import java.util.Optional;
  * <p>A senha nunca é guardada como texto, só o seu <i>hash</i> (uma "impressão digital"
  * calculada a partir dela, que não permite recuperar a senha). Gerar e conferir o hash é
  * tarefa da infraestrutura; o domínio só guarda o resultado.</p>
+ *
+ * <p>Operador nunca é apagado, só desativado: ele aparece no histórico dos caixas que abriu e
+ * fechou. Desativado, não consegue mais entrar no sistema.</p>
  */
 public class Operador {
 
     private Long id;
-    private final String nome;
+    private String nome;
     private final String login;
     private String senhaHash;
     private boolean trocarSenha;
-    private final PerfilOperador perfil;
+    private PerfilOperador perfil;
+    private boolean ativo = true;
 
     /**
      * @param nome      nome do operador, obrigatório
@@ -69,6 +73,46 @@ public class Operador {
     public void alterarSenha(String novoHash) throws DadoObrigatorioException {
         this.senhaHash = exigirTexto(novoHash, "senha");
         this.trocarSenha = false;
+    }
+
+    /**
+     * Senha definida pelo administrador para quem esqueceu a sua. Como o administrador a conhece,
+     * o operador é obrigado a trocá-la no próximo login.
+     *
+     * @param hashProvisorio hash da senha provisória
+     * @throws DadoObrigatorioException se o hash estiver vazio
+     */
+    public void definirSenhaProvisoria(String hashProvisorio) throws DadoObrigatorioException {
+        alterarSenha(hashProvisorio);
+        exigirTrocaDeSenha();
+    }
+
+    /**
+     * Corrige o nome ou muda o perfil. O login não muda: é a identidade do operador no histórico.
+     *
+     * @param novoNome   nome, obrigatório
+     * @param novoPerfil perfil de acesso
+     * @throws DadoObrigatorioException se o nome estiver vazio
+     */
+    public void atualizarDados(String novoNome, PerfilOperador novoPerfil) throws DadoObrigatorioException {
+        String nomeValidado = exigirTexto(novoNome, "nome do operador");
+        this.perfil = Objects.requireNonNull(novoPerfil, "perfil");
+        this.nome = nomeValidado;
+    }
+
+    /** Impede o operador de entrar no sistema, sem apagar o histórico dele. */
+    public void desativar() {
+        this.ativo = false;
+    }
+
+    /** Devolve o acesso a um operador desativado. */
+    public void reativar() {
+        this.ativo = true;
+    }
+
+    /** @return {@code true} se o operador pode entrar no sistema */
+    public boolean estaAtivo() {
+        return ativo;
     }
 
     /** @return {@code true} se o operador precisa definir uma senha nova antes de usar o sistema */

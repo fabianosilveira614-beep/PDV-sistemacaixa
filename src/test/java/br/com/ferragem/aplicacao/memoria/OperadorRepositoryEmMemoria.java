@@ -4,6 +4,7 @@ import br.com.ferragem.aplicacao.porta.OperadorRepository;
 import br.com.ferragem.dominio.modelo.caixa.Operador;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -18,6 +19,16 @@ public class OperadorRepositoryEmMemoria implements OperadorRepository {
     public Optional<Operador> buscarPorLogin(String login) {
         String procurado = login.trim().toLowerCase(Locale.ROOT);
         return operadores.stream().filter(o -> o.getLogin().equals(procurado)).findFirst();
+    }
+
+    @Override
+    public Optional<Operador> buscarPorId(long id) {
+        return operadores.stream().filter(o -> o.getId().orElseThrow() == id).findFirst();
+    }
+
+    @Override
+    public List<Operador> listar() {
+        return operadores.stream().sorted(Comparator.comparing(Operador::getNome)).toList();
     }
 
     @Override

@@ -6,7 +6,19 @@ import br.com.ferragem.aplicacao.casodeuso.AtualizarCliente;
 import br.com.ferragem.aplicacao.casodeuso.AtualizarProduto;
 import br.com.ferragem.aplicacao.casodeuso.AutenticarOperador;
 import br.com.ferragem.aplicacao.casodeuso.CadastrarCliente;
+import br.com.ferragem.aplicacao.casodeuso.AtualizarOperador;
 import br.com.ferragem.aplicacao.casodeuso.CadastrarOperador;
+import br.com.ferragem.aplicacao.casodeuso.DesativarOperador;
+import br.com.ferragem.aplicacao.casodeuso.ListarOperadores;
+import br.com.ferragem.aplicacao.casodeuso.CarregarOrcamento;
+import br.com.ferragem.aplicacao.casodeuso.ExcluirOrcamento;
+import br.com.ferragem.aplicacao.casodeuso.ListarOrcamentos;
+import br.com.ferragem.aplicacao.casodeuso.SalvarOrcamento;
+import br.com.ferragem.aplicacao.casodeuso.ReativarOperador;
+import br.com.ferragem.aplicacao.casodeuso.RelatorioEstoqueBaixo;
+import br.com.ferragem.aplicacao.casodeuso.RelatorioFiadoEmAberto;
+import br.com.ferragem.aplicacao.casodeuso.RelatorioVendas;
+import br.com.ferragem.aplicacao.casodeuso.RedefinirSenha;
 import br.com.ferragem.aplicacao.casodeuso.CadastrarProduto;
 import br.com.ferragem.aplicacao.casodeuso.ConsultarCaixaAberto;
 import br.com.ferragem.aplicacao.casodeuso.ConsultarClientes;
@@ -37,6 +49,11 @@ public record CasosDeUso(
         AutenticarOperador autenticarOperador,
         CadastrarOperador cadastrarOperador,
         TrocarSenha trocarSenha,
+        ListarOperadores listarOperadores,
+        AtualizarOperador atualizarOperador,
+        RedefinirSenha redefinirSenha,
+        DesativarOperador desativarOperador,
+        ReativarOperador reativarOperador,
         ConsultarCaixaAberto consultarCaixaAberto,
         AbrirCaixa abrirCaixa,
         RegistrarSuprimento registrarSuprimento,
@@ -59,5 +76,12 @@ public record CasosDeUso(
         ConsultarHistoricoCliente consultarHistoricoCliente,
         ConsultarContaFiado consultarContaFiado,
         ConsultarVenda consultarVenda,
-        PagarDebito pagarDebito) {
+        PagarDebito pagarDebito,
+        RelatorioVendas relatorioVendas,
+        RelatorioFiadoEmAberto relatorioFiadoEmAberto,
+        RelatorioEstoqueBaixo relatorioEstoqueBaixo,
+        SalvarOrcamento salvarOrcamento,
+        ListarOrcamentos listarOrcamentos,
+        ExcluirOrcamento excluirOrcamento,
+        CarregarOrcamento carregarOrcamento) {
 }

@@ -23,8 +23,8 @@ import java.sql.Statement;
  */
 final class BancoDeTeste {
 
-    private static final String TABELAS = "movimento_estoque, movimento_caixa, pagamento_debito, debito, "
-            + "item_venda, venda, sessao_caixa, produto, cliente, operador";
+    private static final String TABELAS = "item_orcamento, orcamento, movimento_estoque, movimento_caixa, "
+            + "pagamento_debito, debito, item_venda, venda, sessao_caixa, produto, cliente, operador";
 
     private static ConfiguracaoBanco configuracao;
     private static boolean migrado;

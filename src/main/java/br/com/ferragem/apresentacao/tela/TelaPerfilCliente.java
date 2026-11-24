@@ -35,6 +35,7 @@ import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
+import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -98,14 +99,12 @@ public final class TelaPerfilCliente {
     private final CheckBox mostrarQuitadas = new CheckBox("Mostrar compras quitadas");
     private final Label totalDevido = new Label();
     private final Label resumoSelecao = new Label();
-    private final PainelItensVenda itensFiado = new PainelItensVenda();
     private ContaFiado conta;
 
     // aba Compras
     private final DatePicker inicio = new DatePicker(LocalDate.now().minusDays(30));
     private final DatePicker fim = new DatePicker(LocalDate.now());
     private final TableView<Venda> compras = new TableView<>();
-    private final PainelItensVenda itensCompra = new PainelItensVenda();
     private boolean comprasCarregadas;
 
     /**
@@ -192,7 +191,17 @@ public final class TelaPerfilCliente {
         debitos.getColumns().add(colunaDebito("Pago", 110, d -> Formatos.moeda(d.getValorPago())));
         debitos.getColumns().add(colunaDebito("Saldo", 110, d -> Formatos.moeda(d.calcularSaldo())));
         debitos.setPrefHeight(240);
-        debitos.getSelectionModel().selectedItemProperty().addListener((obs, antes, linha) -> mostrarItensDoFiado(linha));
+        // duplo clique ou Enter numa compra abre os detalhes da venda
+        debitos.setOnMouseClicked(evento -> {
+            if (evento.getButton() == MouseButton.PRIMARY && evento.getClickCount() == 2) {
+                abrirVendaDoFiado();
+            }
+        });
+        debitos.setOnKeyPressed(evento -> {
+            if (evento.getCode() == KeyCode.ENTER) {
+                abrirVendaDoFiado();
+            }
+        });
         // Espaço marca/desmarca: filtro para a tabela não usar o Espaço para outra coisa
         debitos.addEventFilter(KeyEvent.KEY_PRESSED, evento -> {
             LinhaDebito linha = debitos.getSelectionModel().getSelectedItem();
@@ -221,12 +230,13 @@ public final class TelaPerfilCliente {
         Button quitar = new Button("Quitar tudo (F11)");
         quitar.getStyleClass().add("botao-secundario");
         quitar.setOnAction(evento -> quitarTudo());
-        Label dica = new Label("Espaço marca a compra. O valor abate da compra mais antiga para a mais nova.");
+        Label dica = new Label("Espaço marca a compra · Enter ou duplo clique: detalhes da venda. "
+                + "O valor abate da compra mais antiga para a mais nova.");
         dica.getStyleClass().add("dica");
         HBox botoes = new HBox(8, pagarMarcadas, valorLivre, quitar, dica);
         botoes.setAlignment(Pos.CENTER_LEFT);
 
-        VBox caixa = new VBox(10, debitos, linhaTotais, botoes, itensFiado.raiz());
+        VBox caixa = new VBox(10, debitos, linhaTotais, botoes);
         VBox.setVgrow(debitos, Priority.ALWAYS);
         caixa.setPadding(new Insets(12, 0, 0, 0));
         return caixa;
@@ -300,15 +310,21 @@ public final class TelaPerfilCliente {
         compras.getColumns().add(colunaVenda("Itens", 70, v -> String.valueOf(v.getItens().size())));
         compras.getColumns().add(colunaVenda("Total", 120, v -> Formatos.moeda(v.calcularTotal())));
         compras.setPrefHeight(240);
-        compras.getSelectionModel().selectedItemProperty().addListener((obs, antes, venda) -> {
-            if (venda == null) {
-                itensCompra.limpar("Selecione uma compra para ver os itens.");
-            } else {
-                itensCompra.mostrar(venda); // o histórico já vem com os itens
+        // duplo clique ou Enter numa compra abre os detalhes (o histórico já vem com os itens)
+        compras.setOnMouseClicked(evento -> {
+            if (evento.getButton() == MouseButton.PRIMARY && evento.getClickCount() == 2) {
+                abrirCompra();
             }
         });
+        compras.setOnKeyPressed(evento -> {
+            if (evento.getCode() == KeyCode.ENTER) {
+                abrirCompra();
+            }
+        });
+        Label dica = new Label("Enter ou duplo clique numa compra: detalhes da venda.");
+        dica.getStyleClass().add("dica");
 
-        VBox caixa = new VBox(10, periodo, compras, itensCompra.raiz());
+        VBox caixa = new VBox(10, periodo, compras, dica);
         VBox.setVgrow(compras, Priority.ALWAYS);
         caixa.setPadding(new Insets(12, 0, 0, 0));
         return caixa;
@@ -449,21 +465,29 @@ public final class TelaPerfilCliente {
         return lista.stream().map(Debito::calcularSaldo).reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-    private void mostrarItensDoFiado(LinhaDebito linha) {
+    /**
+     * A conta de fiado guarda só o número da venda: os itens são buscados no banco na hora.
+     * O operador da venda não vem nessa consulta, por isso a janela omite essa linha.
+     */
+    private void abrirVendaDoFiado() {
+        LinhaDebito linha = debitos.getSelectionModel().getSelectedItem();
         if (linha == null) {
-            itensFiado.limpar("Selecione uma compra para ver os itens.");
             return;
         }
         long vendaId = linha.debito.getVendaId();
-        itensFiado.limpar("Carregando itens da venda nº " + vendaId + "…");
-        Tarefas.emSegundoPlano(null, () -> casos.consultarVenda().executar(vendaId), venda -> {
-            LinhaDebito atual = debitos.getSelectionModel().getSelectedItem();
-            if (atual == null || atual.debito.getVendaId() != vendaId) {
-                return; // o operador já mudou de linha enquanto buscava
-            }
-            venda.ifPresentOrElse(itensFiado::mostrar,
-                    () -> itensFiado.limpar("Venda nº " + vendaId + " não encontrada."));
-        }, erro -> Avisos.tratar(erro, mensagem));
+        Tarefas.emSegundoPlano(debitos, () -> casos.consultarVenda().executar(vendaId), venda ->
+                venda.ifPresentOrElse(v -> {
+                    new DialogoDetalheVenda(v, null).mostrar();
+                    debitos.requestFocus(); // a tabela ficou desabilitada durante a busca e perdeu o foco
+                }, () -> Avisos.erro(mensagem, "Venda nº " + vendaId + " não encontrada.")),
+                erro -> Avisos.tratar(erro, mensagem));
+    }
+
+    private void abrirCompra() {
+        Venda venda = compras.getSelectionModel().getSelectedItem();
+        if (venda != null) {
+            new DialogoDetalheVenda(venda, null).mostrar();
+        }
     }
 
     private void pagarSelecionadas() {

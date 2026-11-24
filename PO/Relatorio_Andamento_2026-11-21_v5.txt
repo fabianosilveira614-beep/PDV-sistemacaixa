@@ -1,0 +1,262 @@
+﻿# Caixa Ferragem — Relatório de andamento (v5)
+
+**Data:** 21/11/2026 · **Desde a v4:** clientes e fiado pela tela, busca do PDV com lista completa, operadores, relatórios, orçamento · **Testes:** 215 passando (eram 190) · **Último commit:** `f1853a1` (Clientes). Operadores, Relatórios e Orçamento **ainda não foram commitados** (seção 2)
+
+Este relatório cobre só o que mudou **depois da v4**. O que estava na v3 e na v4 continua valendo: arquitetura, as três perguntas do professor, banco, login, PDV e produtos. Leia os três juntos.
+
+---
+
+## 1. Resumo
+
+| Área | Situação |
+|---|---|
+| Clientes: lista, cadastro, perfil, conta de fiado com recebimento | Pronto e testado no PC do grupo |
+| Busca do PDV (F3 produto, F4 cliente) abrindo com a lista completa | Pronta |
+| Operadores (só administrador) | Pronto |
+| Relatórios: vendas do período (com lucro bruto), fiado em aberto, estoque baixo | Pronto e testado no PC do grupo |
+| Orçamento (F7): salvar, imprimir, reimprimir, excluir, carregar no carrinho | Pronto e testado no PC do grupo |
+| Acabamento: Documento de Projeto, JavaDoc, README, roteiro da apresentação | **Próximo e último** (seção 12) |
+
+**Todas as funcionalidades combinadas estão feitas.** Daqui até a entrega, nada de funcionalidade nova: só documentação, ensaio e correção do que aparecer.
+
+---
+
+## 2. Como rodar (o que mudou)
+
+1. **Antes de tudo, faça o commit do que está pendente.** Operadores, Relatórios e Orçamento estão só na pasta, fora do git:
+
+    `git add .` e depois `git commit -m "Operadores, relatorios e orcamento"` (aspas **duplas** no PowerShell).
+
+2. Se os arquivos foram atualizados por fora do IntelliJ: **File → Reload All from Disk**. O `pom.xml` não mudou nesta etapa, então não precisa do reload do Maven.
+3. Rode os testes (`src/test/java` → Run 'All Tests'). Esperado: **215**.
+4. Rode o `Main`. O Flyway aplica sozinho as duas migrações novas:
+    - **V5:** custo do produto gravado em cada item vendido (para o lucro bruto).
+    - **V6:** tabelas do orçamento.
+5. **Vendas feitas antes da V5** aparecem nos relatórios como "sem custo registrado". Isso é esperado e está explicado na seção 6.
+
+---
+
+## 3. Clientes e fiado
+
+### 3.1 O que dá para fazer
+
+| Onde | Teclas | O quê |
+|---|---|---|
+| Lista de clientes | **F2** novo · **F3** buscar · **Enter** perfil · **F9** receber · **Del** excluir | Nome, telefone, **total devido** (vermelho quando deve) e compras em aberto. A busca aceita nome ou CPF, mas o CPF não aparece na lista |
+| Perfil → Dados | **Ctrl+1** · **F2** editar | Único lugar em que o CPF aparece |
+| Perfil → Conta fiado | **Ctrl+2** · **Espaço** marca · **F9** paga as marcadas · **F10** valor livre · **F11** quita tudo | Itens de cada compra; "Mostrar quitadas"; comprovante com troco e saldo restante |
+| Perfil → Compras | **Ctrl+3** | Histórico por período, com os itens de cada venda |
+| PDV, busca de cliente (F4) | **F2** cadastrar novo | O cliente cadastrado ali já entra na venda |
+
+**Esc** volta do perfil para a lista.
+
+### 3.2 Quem decide o quê
+
+- **Quanto o cliente deve** e **em que ordem o pagamento abate** (da compra mais antiga para a mais nova): `ContaFiado` (domínio). A lista de clientes usa a mesma classe (`ListarClientes`), então o número da lista e o da conta não têm como divergir.
+- **Exigir caixa aberto para receber** e **lançar o dinheiro na gaveta:** `PagarDebito`. A tela confere o caixa antes de abrir o pagamento só para poupar o operador de digitar tudo à toa; o caso de uso confere de novo ao gravar.
+- **Excluir cliente:** quem deve é recusado; quem já comprou é retirado da lista mas guardado; quem nunca comprou é apagado (`ExcluirCliente`).
+- **Não há reativar cliente** (decisão do grupo). Consequência: o CPF de um cliente excluído fica bloqueado. O `CadastrarCliente` explica isso na mensagem, em vez de dar "CPF repetido" sem contexto.
+
+### 3.3 Defeito pego durante a construção
+
+Na janela de pagamento reescrita (`DialogoPagamento`), o "Quitar tudo" recebia dois `boolean` trocados de posição: o campo de valor sumia em vez de aparecer travado. Foi pego antes de chegar ao grupo. **Lição:** três `boolean` seguidos num construtor é convite a esse erro. Por isso o construtor é privado e só se usa pelos dois métodos de fábrica, `paraVenda` e `paraFiado`, cujo nome diz o que se quer.
+
+---
+
+## 4. Busca do PDV com lista completa (F3 e F4)
+
+| Antes | Agora |
+|---|---|
+| Abria vazia; era preciso digitar e apertar Enter | Abre com **todos os ativos** em ordem alfabética e **filtra enquanto digita** (pausa de 0,3 s) |
+| Enter no campo buscava | Enter ou ↓ descem para o primeiro resultado |
+
+- **A mudança foi na regra, não só na tela.** `ConsultarProdutos` e `ConsultarClientes` devolviam lista vazia de propósito quando o texto estava em branco. Agora devolvem todos os **ativos**: produto inativo não pode ser vendido, e cliente excluído não pode comprar fiado.
+- **Respostas fora de ordem:** digitando rápido, uma busca antiga pode chegar do banco depois da nova e sobrescrever a lista. Cada busca recebe um número, e a resposta de uma busca antiga é descartada.
+- **CPF pela metade não encontra nada,** de propósito (LGPD): se a busca aceitasse o começo do CPF, daria para descobrir o CPF de alguém dígito por dígito.
+
+---
+
+## 5. Operadores (só administrador)
+
+| Ação | Tecla | Regra |
+|---|---|---|
+| Novo | **F2** | Login único; senha provisória de no mínimo 6 caracteres, com troca obrigatória no primeiro acesso |
+| Editar nome e perfil | **Enter** | O **login não muda**: é a identidade do operador no histórico |
+| Redefinir senha | **F6** | Senha provisória; o operador é obrigado a trocar no próximo acesso. A própria senha se troca pelo menu do usuário |
+| Desativar / Reativar | **F7** | **Não existe excluir operador:** ele aparece nos caixas que abriu e fechou |
+
+**Proteções e onde estão**
+
+- **Só administrador mexe em operadores:** `Administracao.exigirAdministrador`, num lugar só, chamada por todos os casos de uso de operador.
+- **Ninguém desativa a si mesmo nem tira o próprio perfil de administrador:** `Administracao.exigirOutraPessoa`.
+- **Não se desativa quem está com o caixa aberto:** `DesativarOperador`.
+- **Operador desativado não entra,** com a mesma mensagem de senha errada, para não revelar quais logins existem: `AutenticarOperador`.
+
+**Argumento para a apresentação:** o sistema **nunca fica sem administrador**, e para isso não foi preciso contar administradores. Quem administra é sempre um administrador ativo e não pode desativar nem rebaixar a si mesmo; logo, sobra pelo menos ele.
+
+**Regra que saiu do SQL:** antes, "desativado não entra" era um `AND o.ativo` escondido na consulta do banco, e o repositório falso dos testes não fazia o mesmo filtro. Agora o banco devolve o operador como ele está, e a regra mora no caso de uso, onde há teste para ela.
+
+---
+
+## 6. Relatórios
+
+Três abas (**Ctrl+1/2/3**), **F5** atualiza. Os períodos têm atalhos **Hoje · 7 dias · Este mês**, e mudar uma data já refaz a consulta.
+
+### 6.1 Vendas do período
+
+- **Números:** quantidade de vendas, total vendido, valor médio por venda, **entrou no caixa**, **lucro bruto** (com a margem), total por forma de pagamento, fiado recebido e os **10 produtos mais vendidos** em valor.
+- **Lista das vendas** com cliente e operador. Selecionando uma, aparecem os itens.
+
+**Vendido × entrou no caixa.** Venda no fiado conta como vendida no dia, mas o dinheiro só entra quando o cliente paga. Por isso:
+
+> entrou no caixa = total vendido − vendido no fiado + fiado recebido no período (de compras de qualquer data)
+
+**Lucro com o custo da época (migração V5).** Cada item vendido passa a guardar o custo do produto **no momento da venda**, como já guardava o preço. Se o custo do martelo subir amanhã, o lucro das vendas de hoje não muda. As vendas anteriores à V5 não têm custo: entram no total vendido, mas ficam fora do lucro, e o relatório diz quanto ficou de fora. Preencher com o custo de hoje inventaria um lucro que talvez não tenha existido.
+
+**Onde estão as contas:** todas em `ResumoVendas`, em Java, a partir das vendas que o banco devolve. Por isso cada número tem teste sem banco.
+
+### 6.2 Fiado em aberto
+
+- **Quais compras aparecem:** compras feitas entre as datas escolhidas que ainda não foram quitadas, **da mais antiga para a mais nova**, com os dias em aberto. O critério de "em aberto" é o mesmo da conta do cliente: `Debito.estaPendente()`.
+- **Enter** numa linha abre a conta daquele cliente, pronta para receber.
+
+### 6.3 Estoque baixo
+
+- **Quais produtos aparecem:** ativos no estoque mínimo ou abaixo, com quanto falta para chegar ao mínimo.
+- **O critério** é o mesmo que pinta de vermelho a tela de Produtos: `Produto.precisaRepor()`. Uma regra, dois lugares que a usam.
+
+**Regra comum:** "a data inicial não pode passar da final" está em `Periodo.validar`, usada pelos relatórios e pelo histórico do cliente.
+
+---
+
+## 7. Orçamento (F7)
+
+| Situação | O que o F7 faz |
+|---|---|
+| Carrinho com itens | Grava o orçamento, abre a caixa de impressão e avisa "Orçamento nº X salvo". **O carrinho continua como estava.** Se a impressão for cancelada, o orçamento fica salvo e a mensagem diz como reimprimir |
+| Carrinho vazio | Abre a lista de orçamentos: **Enter** carrega no carrinho, **F6** reimprime, **Del** exclui |
+
+- **O cupom traz:** número, "sem valor fiscal", data, atendente, cliente (se houver), itens, total e "preços sujeitos a alteração". **Não tem validade** (decisão do grupo).
+- **Ao carregar no carrinho, valem os preços de hoje.** Um aviso lista o que mudou: preço diferente, produto fora de linha (fica de fora), estoque insuficiente (fica de fora), cliente excluído (o carrinho fica sem cliente). Depois é uma venda normal com F9.
+- **Excluir orçamento apaga de verdade:** ele não tem valor fiscal. Produto, cliente e operador, ao contrário, só são inativados.
+
+**Argumento forte para a apresentação: por que o orçamento não tem como mexer em estoque ou caixa.** O `SalvarOrcamento` **só recebe o repositório de orçamentos**. Ele não tem como baixar estoque nem lançar dinheiro, porque não recebe quem faz isso. A garantia está na montagem da classe (inversão de dependência), não num `if`. Mesmo assim há um teste no banco que confere que `movimento_estoque`, `movimento_caixa` e `venda` não mudam.
+
+**Decisões no banco (V6):**
+
+| Caso | Comportamento |
+|---|---|
+| Cliente do orçamento excluído do cadastro | O orçamento continua, sem cliente (`ON DELETE SET NULL`) |
+| Produto do orçamento apagado do cadastro | Sai do orçamento (`ON DELETE CASCADE`). Só acontece com cadastro errado e nunca vendido |
+| Orçamento excluído | Os itens saem junto (`ON DELETE CASCADE`) |
+
+---
+
+## 8. Responsáveis pelas regras novas
+
+| Regra nova | Responsável | Se mudar, mexer em… | Teste |
+|---|---|---|---|
+| Total devido da lista = total da conta | `ListarClientes` + `ContaFiado` | `ContaFiado` | `ClienteCasosDeUsoTest` |
+| CPF de cliente excluído bloqueado, com explicação | `CadastrarCliente` | Só esse caso de uso | `ClienteCasosDeUsoTest` |
+| Busca sem texto lista todos os ativos | `ConsultarProdutos`, `ConsultarClientes` | Esses dois | `ProdutoCasosDeUsoTest`, `ClienteCasosDeUsoTest` |
+| Só administrador mexe em operadores | `Administracao` | Só essa classe | `OperadorCasosDeUsoTest` |
+| Ninguém desativa ou rebaixa a si mesmo | `Administracao` | Só essa classe | `OperadorCasosDeUsoTest` |
+| Não desativar quem está com o caixa aberto | `DesativarOperador` | Só esse caso de uso | `OperadorCasosDeUsoTest` |
+| Desativado não entra | `AutenticarOperador` | Só esse caso de uso | `OperadorCasosDeUsoTest`, `RepositoriosJdbcTest` |
+| Senha provisória obriga a trocar | `Operador.definirSenhaProvisoria` | `Operador` | `OperadorCasosDeUsoTest` |
+| Custo da época gravado na venda | `Venda` / `ItemVenda` | `ItemVenda` | `RelatorioCasosDeUsoTest`, `FluxoCaixaJdbcTest` |
+| Lucro bruto de um item | `ItemVenda.calcularLucroBruto()` | Só esse método | `RelatorioCasosDeUsoTest` |
+| Números do relatório de vendas | `ResumoVendas` | Só essa classe | `RelatorioCasosDeUsoTest` |
+| O que é fiado em aberto | `Debito.estaPendente()` + `RelatorioFiadoEmAberto` | `Debito` (critério) ou o relatório (filtro e ordem) | `RelatorioCasosDeUsoTest` |
+| Estoque baixo | `Produto.precisaRepor()` | `Produto` | `ProdutoTest`, `RelatorioCasosDeUsoTest` |
+| Período válido | `Periodo.validar` | Só essa classe | `RelatorioCasosDeUsoTest` |
+| Orçamento não mexe em estoque nem caixa | `SalvarOrcamento` (só recebe o repositório de orçamentos) | — | `OrcamentoCasosDeUsoTest`, `FluxoCaixaJdbcTest` |
+| Carrinho vazio não vira orçamento | `Orcamento.doCarrinho` | `Orcamento` | `OrcamentoCasosDeUsoTest` |
+| Orçamento carregado usa o preço de hoje, com avisos | `CarregarOrcamento` | Só esse caso de uso | `OrcamentoCasosDeUsoTest` |
+| Tecla de cada atalho (inclui F7) | `AtalhoPdv` | Só o `enum` | Manual |
+
+---
+
+## 9. Decisões do grupo nesta etapa
+
+| Decisão | Escolha |
+|---|---|
+| Total devido na lista de clientes | Calculado pelo domínio (`ContaFiado`), não por um `SUM` no banco |
+| Reativar cliente | **Não existe**; o CPF de excluído fica bloqueado, com mensagem explicando |
+| Busca do PDV | Abre com a lista completa e filtra enquanto digita |
+| Operador | Nunca é excluído, só desativado |
+| Relatórios | Vendas do período, fiado em aberto, estoque baixo; cada um com início e fim escolhidos (menos estoque) |
+| Lucro bruto | Com o custo da época (V5); vendas antigas mostradas como "sem custo registrado" |
+| Fiado recebido | Linha separada, para "vendido" não ser confundido com "entrou no caixa" |
+| Mais vendidos | Sim, os 10 primeiros em valor |
+| Imprimir ou exportar relatórios | Deixado para o fim, se houver tempo |
+| Orçamento | **Mudou desde a v4:** agora é **guardado** (antes seria só impresso). Sem validade; não confere estoque; carregar no carrinho usa o preço de hoje |
+| Orçamento que virou venda | **Não some sozinho.** O grupo preferiu não dar ao `RegistrarVenda` mais uma tarefa (princípio da responsabilidade única). O operador exclui pela lista (Del) |
+| Travar o preço de produto já vendido | **Não.** As vendas antigas já estão protegidas, porque cada item guarda o preço e o custo cobrados. Travar obrigaria a cadastrar um produto novo a cada reajuste |
+
+---
+
+## 10. Testes (215)
+
+| Classe de teste | v4 | Agora | O que entrou |
+|---|---|---|---|
+| `ClienteCasosDeUsoTest` | 8 | 12 | Lista com total devido; CPF de excluído; consulta de venda pelo número; busca sem texto |
+| `ProdutoCasosDeUsoTest` | 15 | 16 | Busca sem texto lista todos os ativos |
+| `OperadorCasosDeUsoTest` | 6 | 11 | Desativar e reativar; proteções; atualização; senha provisória; login de desativado |
+| `RelatorioCasosDeUsoTest` | — | 6 | Resumo do período; lucro com custo da época; período vazio e invertido; ranking; fiado em aberto; estoque baixo |
+| `OrcamentoCasosDeUsoTest` | — | 5 | Salvar sem mexer em nada; sem conferir estoque; carregar com avisos; carregar sem mudanças; excluir e listar |
+| `RepositoriosJdbcTest` | 9 | 10 | Operador desativado no PostgreSQL real |
+| `FluxoCaixaJdbcTest` | 8 | 11 | Clientes com total devido; relatórios no banco; orçamento no banco sem tocar em estoque nem caixa |
+| Demais classes | 144 | 144 | Sem mudança |
+
+**Testes que provam que os testes funcionam (testes de mutação).** Em cada regra importante, a regra foi sabotada de propósito e o teste correspondente reprovou:
+
+- desativado entrando no sistema;
+- administrador desativando a si mesmo;
+- lucro calculado com o custo de hoje;
+- orçamento carregado sem o aviso de preço alterado.
+
+**Telas:** testadas manualmente pelo roteiro. Cada tela é compilada contra o JavaFX e o Ikonli reais, e a folha de estilo é validada pelo leitor de CSS do JavaFX (53 regras, 0 erros). **A impressão do orçamento** foi testada pelo grupo; não há como testá-la automaticamente.
+
+---
+
+## 11. Pontos fracos conhecidos
+
+| Ponto | Por que ficou assim | Se fosse para produção |
+|---|---|---|
+| A lista de clientes faz uma consulta por cliente para o total devido | Mantém a regra num lugar só (`ContaFiado`) | Um `SUM` no SQL, à custa de duplicar a regra |
+| O relatório de vendas traz o período inteiro para a memória | Contas em Java são testáveis sem banco | Somas no SQL (`GROUP BY`) para milhões de vendas |
+| Orçamento que virou venda continua na lista | Decisão do grupo (seção 9) | Apagar na mesma transação da venda, ou marcar "convertido" |
+| Ajuste de estoque não registra **quem** fez | Ficou de fora desde a v4 | Coluna de operador no movimento de estoque |
+| Movimento de caixa não guarda o número da venda numa coluna | Só na descrição | Coluna `venda_id` |
+| Esc com o cursor num campo de data volta para a lista de clientes | Incômodo pequeno | Ignorar Esc vindo do campo de data |
+| Telas sem teste automatizado | Regras testadas nos casos de uso; as telas só montam o pedido | TestFX |
+| Documento de Projeto desatualizado | — | **É a próxima tarefa** |
+
+---
+
+## 12. Próximos passos
+
+| Dia | Entrega |
+|---|---|
+| Sáb 21 | **Commit** do que está pendente; conferir os roteiros de teste das três etapas |
+| Dom 22 | **Documento de Projeto atualizado:** atalhos, nomes de classes (ex.: `ConsultarDebitosCliente` virou `ConsultarContaFiado`; `JdbcGerenciadorTransacao` virou `ContextoJdbc`), telas novas |
+| Seg 23 | JavaDoc em HTML; README com integrantes e como rodar; mapa "regra → classe → teste" para a apresentação |
+| Ter 24 | Divisão de quem apresenta o quê; ensaio com as perguntas da seção 13 |
+| Qua 25 | Relatório final; segundo ensaio |
+| Qui 26 | **Reserva.** Nada de funcionalidade nova |
+
+---
+
+## 13. Perguntas para estudar
+
+1. Por que o total devido da lista de clientes nunca pode divergir do total da conta de fiado?
+2. Por que a busca do PDV descarta a resposta de uma busca antiga? O que aconteceria sem isso?
+3. Por que digitar metade de um CPF não encontra ninguém?
+4. Como o sistema garante que nunca fica sem administrador, sem contar administradores?
+5. Por que "desativado não entra" saiu do SQL e foi para o `AutenticarOperador`?
+6. Por que o item de venda guarda o custo do dia? O que o relatório mostraria se usasse o custo de hoje?
+7. Qual é a diferença entre "total vendido" e "entrou no caixa"? Dê um exemplo com fiado.
+8. Como você prova que o orçamento não mexe em estoque? Há duas respostas: uma pelo desenho da classe e outra pelo teste.
+9. Por que o orçamento carregado usa o preço de hoje e não o do orçamento?
+10. O orçamento que vira venda não some sozinho. Qual seria o custo de fazê-lo sumir, e por que o grupo decidiu não fazer?

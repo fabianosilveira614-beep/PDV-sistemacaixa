@@ -300,6 +300,7 @@ public final class TelaPdv {
             case CANCELAR_VENDA -> cancelarVenda();
             case PAGAR -> irParaPagamento();
             case GAVETA -> abrirGaveta();
+            case ORCAMENTO -> orcamento();
         }
         focarCampo();
     }
@@ -496,6 +497,47 @@ public final class TelaPdv {
             novaVenda();
             Avisos.sucesso(mensagem, "Venda cancelada.");
         }
+    }
+
+    // ------------------------------------------------------------------ orçamento
+
+    /** F7: com itens, salva e imprime; com o carrinho vazio, abre os orçamentos guardados. */
+    private void orcamento() {
+        if (venda.estaVazia()) {
+            abrirOrcamentos();
+            return;
+        }
+        Tarefas.emSegundoPlano(raiz, () -> casos.salvarOrcamento().executar(venda, sessao.operador()), orcamento -> {
+            long numero = orcamento.getId().orElseThrow();
+            ImpressaoOrcamento.Resultado impressao = ImpressaoOrcamento.imprimir(orcamento, raiz.getScene().getWindow());
+            // o carrinho continua como estava: o cliente pode decidir comprar na hora
+            Avisos.sucesso(mensagem, impressao == ImpressaoOrcamento.Resultado.IMPRESSO
+                    ? "Orçamento nº " + numero + " salvo e enviado para a impressora."
+                    : "Orçamento nº " + numero + " salvo. " + ImpressaoOrcamento.descreverProblema(impressao)
+                    + " Para imprimir depois: F7 com o carrinho vazio → Reimprimir.");
+            focarCampo();
+        }, erro -> {
+            Avisos.tratar(erro, mensagem);
+            focarCampo();
+        });
+    }
+
+    private void abrirOrcamentos() {
+        new DialogoOrcamentos(casos).mostrar().ifPresent(resultado -> {
+            venda = resultado.carrinho();
+            quantidadeProxima = null;
+            atualizar();
+            long numero = resultado.orcamento().getId().orElseThrow();
+            if (!resultado.avisos().isEmpty()) {
+                Alert alerta = new Alert(Alert.AlertType.WARNING);
+                Tema.aplicar(alerta.getDialogPane());
+                alerta.setTitle("Orçamento carregado");
+                alerta.setHeaderText("Confira com o cliente o que mudou desde o orçamento nº " + numero + ":");
+                alerta.setContentText(DialogoOrcamentos.descreverAvisos(resultado).strip());
+                alerta.showAndWait();
+            }
+            Avisos.sucesso(mensagem, "Orçamento nº " + numero + " carregado no carrinho. Confira e aperte F9 para vender.");
+        });
     }
 
     private void abrirGaveta() {

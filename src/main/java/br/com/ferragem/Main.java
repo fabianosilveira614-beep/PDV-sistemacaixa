@@ -12,7 +12,6 @@ import javafx.application.Application;
  * evita o problema tanto no IntelliJ quanto no {@code mvn javafx:run}.</p>
  */
 public final class Main {
-
     private Main() {
     }
 

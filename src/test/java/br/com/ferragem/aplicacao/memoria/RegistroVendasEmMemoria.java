@@ -50,6 +50,18 @@ public class RegistroVendasEmMemoria implements RegistroVendas, HistoricoVendas 
     }
 
     @Override
+    public List<VendaDoPeriodo> buscarPorPeriodo(LocalDate inicio, LocalDate fim) {
+        LocalDateTime de = inicio.atStartOfDay();
+        LocalDateTime ate = fim.plusDays(1).atStartOfDay();
+        return registros.stream()
+                .filter(r -> !r.venda().getDataHora().orElseThrow().isBefore(de)
+                        && r.venda().getDataHora().orElseThrow().isBefore(ate))
+                .sorted(Comparator.comparing((Registro r) -> r.venda().getDataHora().orElseThrow()).reversed())
+                .map(r -> new VendaDoPeriodo(r.venda(), r.operador().getNome()))
+                .toList();
+    }
+
+    @Override
     public boolean clienteTemVendas(Cliente cliente) {
         return registros.stream().anyMatch(r -> r.venda().getCliente().filter(c -> c == cliente).isPresent());
     }

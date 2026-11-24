@@ -18,6 +18,8 @@ import javafx.scene.control.Label;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 
 import java.math.BigDecimal;
 import java.util.Map;
@@ -58,6 +60,16 @@ public final class DialogoGaveta {
         // enquanto o banco responde, reserva espaço para a janela não abrir espremida
         conteudo.setMinHeight(320);
         dialogo.getDialogPane().setContent(conteudo);
+        // atalhos da gaveta: F1 suprimento, F2 sangria
+        dialogo.getDialogPane().addEventFilter(KeyEvent.KEY_PRESSED, evento -> {
+            if (evento.getCode() == KeyCode.F1) {
+                suprimento();
+                evento.consume();
+            } else if (evento.getCode() == KeyCode.F2) {
+                sangria();
+                evento.consume();
+            }
+        });
         recarregar();
     }
 
@@ -91,10 +103,10 @@ public final class DialogoGaveta {
         Label gaveta = new Label(Formatos.moeda(sessaoCaixa.calcularSaldoEsperado()));
         gaveta.getStyleClass().add("valor-destaque");
 
-        Button suprimento = new Button("Suprimento");
+        Button suprimento = new Button("Suprimento (F1)");
         suprimento.getStyleClass().add("botao-secundario");
         suprimento.setOnAction(evento -> suprimento());
-        Button sangria = new Button("Sangria");
+        Button sangria = new Button("Sangria (F2)");
         sangria.getStyleClass().add("botao-secundario");
         sangria.setOnAction(evento -> sangria());
         Button fechar = new Button("Fechar caixa");

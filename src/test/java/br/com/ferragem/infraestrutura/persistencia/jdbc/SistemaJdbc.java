@@ -41,6 +41,7 @@ final class SistemaJdbc {
     final CaixaRepositoryJdbc caixas;
     final DebitoRepositoryJdbc debitos;
     final VendaRepositoryJdbc vendas;
+    final OrcamentoRepositoryJdbc orcamentos;
 
     SistemaJdbc(FabricaConexao fabrica) {
         contexto = new ContextoJdbc(fabrica);
@@ -51,6 +52,7 @@ final class SistemaJdbc {
         caixas = new CaixaRepositoryJdbc(contexto);
         debitos = new DebitoRepositoryJdbc(contexto);
         vendas = new VendaRepositoryJdbc(contexto);
+        orcamentos = new OrcamentoRepositoryJdbc(contexto);
     }
 
     ProcessadoresPagamento processadores() {

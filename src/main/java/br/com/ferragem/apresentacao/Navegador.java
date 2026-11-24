@@ -7,9 +7,11 @@ import br.com.ferragem.apresentacao.comum.Sessao;
 import br.com.ferragem.apresentacao.comum.Tarefas;
 import br.com.ferragem.apresentacao.tela.TelaClientes;
 import br.com.ferragem.apresentacao.tela.TelaLogin;
+import br.com.ferragem.apresentacao.tela.TelaOperadores;
 import br.com.ferragem.apresentacao.tela.TelaPdv;
 import br.com.ferragem.apresentacao.tela.TelaPerfilCliente;
 import br.com.ferragem.apresentacao.tela.TelaProdutos;
+import br.com.ferragem.apresentacao.tela.TelaRelatorios;
 import br.com.ferragem.apresentacao.tela.TelaTrocaSenha;
 import br.com.ferragem.dominio.modelo.caixa.Operador;
 import br.com.ferragem.dominio.modelo.cliente.Cliente;
@@ -27,7 +29,6 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
-import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 
 import java.util.EnumMap;
@@ -166,14 +167,33 @@ public final class Navegador {
         entrarNaArea(Area.CLIENTES, new TelaPerfilCliente(casos, this, cliente, aba).raiz());
     }
 
-    /** Relatórios (próxima etapa). */
+    /** Relatórios: vendas do período, fiado em aberto e estoque baixo. */
     public void irParaRelatorios() {
-        irParaAreaEmConstrucao(Area.RELATORIOS, "vendas do período, fiado em aberto e estoque baixo");
+        if (exigirSenhaPropria()) {
+            return;
+        }
+        entrarNaArea(Area.RELATORIOS, new TelaRelatorios(casos, this).raiz());
     }
 
-    /** Operadores, só para administrador (próxima etapa). */
+    /**
+     * Operadores: só administrador. O botão nem aparece para os outros, e os casos de uso
+     * conferem de novo (a tela não é a única barreira).
+     */
     public void irParaOperadores() {
-        irParaAreaEmConstrucao(Area.OPERADORES, "cadastro de quem usa o caixa");
+        if (exigirSenhaPropria() || !sessao.operador().ehAdministrador()) {
+            return;
+        }
+        entrarNaArea(Area.OPERADORES, new TelaOperadores(casos, sessao, this).raiz());
+    }
+
+    /**
+     * O administrador corrigiu o próprio nome na tela de operadores: atualiza a sessão e o menu.
+     *
+     * @param atualizado o operador logado, já gravado
+     */
+    public void aoAlterarOperadorLogado(Operador atualizado) {
+        sessao.entrar(atualizado);
+        menuUsuario.setText(atualizado.getNome());
     }
 
     /** Troca de senha voluntária (menu do usuário). */
@@ -219,20 +239,6 @@ public final class Navegador {
         atualizarSituacaoCaixa();
     }
 
-    private void irParaAreaEmConstrucao(Area area, String conteudoPrevisto) {
-        if (exigirSenhaPropria()) {
-            return;
-        }
-        Label titulo = new Label(area.titulo);
-        titulo.getStyleClass().add("titulo-secao");
-        Label texto = new Label("Esta área entra na próxima etapa: " + conteudoPrevisto + ".");
-        texto.setWrapText(true);
-        VBox cartao = new VBox(12, titulo, texto);
-        cartao.getStyleClass().add("cartao");
-        cartao.setMaxSize(520, Region.USE_PREF_SIZE);
-        entrarNaArea(area, new StackPane(cartao));
-    }
-
     private void mostrarMoldura(boolean visivel) {
         areasDaBarra.setVisible(visivel);
         menuUsuario.setVisible(visivel);
@@ -266,7 +272,7 @@ public final class Navegador {
     // ------------------------------------------------------------------ moldura
 
     private HBox criarBarra() {
-        Label titulo = new Label("Caixa Ferragem");
+        Label titulo = new Label("Nova Ferragem");
         titulo.getStyleClass().add("titulo-app");
         titulo.setPadding(new Insets(0, 16, 0, 0));
 

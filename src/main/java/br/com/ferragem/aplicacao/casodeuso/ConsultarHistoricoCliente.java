@@ -32,11 +32,7 @@ public class ConsultarHistoricoCliente {
      */
     public List<Venda> executar(Cliente cliente, LocalDate inicio, LocalDate fim) throws PeriodoInvalidoException {
         Objects.requireNonNull(cliente, "cliente");
-        Objects.requireNonNull(inicio, "inicio");
-        Objects.requireNonNull(fim, "fim");
-        if (inicio.isAfter(fim)) {
-            throw new PeriodoInvalidoException();
-        }
+        Periodo.validar(inicio, fim);
         return historico.buscarPorCliente(cliente, inicio, fim);
     }
 }

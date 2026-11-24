@@ -39,7 +39,7 @@ final class Mapeadores {
 
     static final String COLUNAS_OPERADOR = """
             o.id AS o_id, o.nome AS o_nome, o.login AS o_login, o.senha_hash AS o_senha_hash,
-            o.perfil AS o_perfil, o.trocar_senha AS o_trocar_senha""";
+            o.perfil AS o_perfil, o.trocar_senha AS o_trocar_senha, o.ativo AS o_ativo""";
 
     private Mapeadores() {
     }
@@ -93,6 +93,9 @@ final class Mapeadores {
                     linha.getString("o_senha_hash"), PerfilOperador.valueOf(linha.getString("o_perfil")));
             if (linha.getBoolean("o_trocar_senha")) {
                 operador.exigirTrocaDeSenha();
+            }
+            if (!linha.getBoolean("o_ativo")) {
+                operador.desativar();
             }
             operador.atribuirId(id);
             return operador;

@@ -180,6 +180,25 @@ class RepositoriosJdbcTest {
     }
 
     @Test
+    @DisplayName("Operador desativado, nome e perfil alterados sobrevivem a reabrir; desativado continua listado")
+    void operadorDesativadoPersiste() throws Exception {
+        Operador bia = new Operador("Bia", "bia", "hash", PerfilOperador.OPERADOR);
+        sistema.operadores.salvar(bia);
+        long id = bia.getId().orElseThrow();
+
+        Operador lida = reabrir().operadores.buscarPorId(id).orElseThrow();
+        lida.atualizarDados("Beatriz", PerfilOperador.ADMINISTRADOR);
+        lida.desativar();
+        reabrir().operadores.salvar(lida);
+
+        Operador depois = reabrir().operadores.buscarPorLogin("BIA").orElseThrow();
+        assertFalse(depois.estaAtivo());
+        assertEquals("Beatriz", depois.getNome());
+        assertTrue(depois.ehAdministrador());
+        assertTrue(reabrir().operadores.listar().stream().anyMatch(o -> o.getLogin().equals("bia")));
+    }
+
+    @Test
     @DisplayName("Dado corrompido no banco é rejeitado na leitura, não vira objeto inválido")
     void leituraRejeitaDadoInvalido() throws Exception {
         sistema.produtos.salvar(new ProdutoUnidade("P-1", null, "Parafuso", valor("1"), valor("2")));

@@ -12,6 +12,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -64,6 +65,57 @@ public class DebitoRepositoryJdbc implements DebitoRepository {
                 repetirPagamentos(conexao, debito);
             }
             return debitos;
+        });
+    }
+
+    @Override
+    public List<Debito> buscarPorPeriodoDeCompra(LocalDate inicio, LocalDate fim) {
+        String sql = "SELECT d.id, d.venda_id, d.valor_original, d.criado_em, " + Mapeadores.COLUNAS_CLIENTE + """
+                 FROM debito d
+                 JOIN cliente c ON c.id = d.cliente_id
+                WHERE d.criado_em >= ? AND d.criado_em < ?
+                ORDER BY d.criado_em, d.id""";
+        return contexto.usar(conexao -> {
+            List<Debito> debitos = new ArrayList<>();
+            try (PreparedStatement comando = conexao.prepareStatement(sql)) {
+                comando.setObject(1, inicio.atStartOfDay());
+                comando.setObject(2, fim.plusDays(1).atStartOfDay());
+                try (ResultSet linha = comando.executeQuery()) {
+                    while (linha.next()) {
+                        Debito debito = new Debito(Mapeadores.cliente(linha), linha.getLong("venda_id"),
+                                linha.getBigDecimal("valor_original"),
+                                linha.getObject("criado_em", LocalDateTime.class));
+                        debito.atribuirId(linha.getLong("id"));
+                        debitos.add(debito);
+                    }
+                }
+            }
+            for (Debito debito : debitos) {
+                repetirPagamentos(conexao, debito);
+            }
+            return debitos;
+        });
+    }
+
+    @Override
+    public List<PagamentoDebito> buscarPagamentosNoPeriodo(LocalDate inicio, LocalDate fim) {
+        String sql = """
+                SELECT valor, forma_pagamento, data_hora FROM pagamento_debito
+                 WHERE data_hora >= ? AND data_hora < ? ORDER BY data_hora, id""";
+        return contexto.usar(conexao -> {
+            List<PagamentoDebito> pagamentos = new ArrayList<>();
+            try (PreparedStatement comando = conexao.prepareStatement(sql)) {
+                comando.setObject(1, inicio.atStartOfDay());
+                comando.setObject(2, fim.plusDays(1).atStartOfDay());
+                try (ResultSet linha = comando.executeQuery()) {
+                    while (linha.next()) {
+                        pagamentos.add(new PagamentoDebito(linha.getBigDecimal("valor"),
+                                FormaPagamento.valueOf(linha.getString("forma_pagamento")),
+                                linha.getObject("data_hora", LocalDateTime.class)));
+                    }
+                }
+            }
+            return pagamentos;
         });
     }
 

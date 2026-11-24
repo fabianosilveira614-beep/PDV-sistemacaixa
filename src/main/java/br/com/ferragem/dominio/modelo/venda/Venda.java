@@ -103,7 +103,7 @@ public class Venda {
         if (existente.isPresent()) {
             existente.get().alterarQuantidade(quantidadeTotal);
         } else {
-            itens.add(new ItemVenda(produto, quantidade, produto.getPrecoVenda()));
+            itens.add(new ItemVenda(produto, quantidade, produto.getPrecoVenda(), produto.getPrecoCusto()));
         }
     }
 
@@ -236,8 +236,8 @@ public class Venda {
     public Venda copiar() {
         exigirEmAberto();
         Venda copia = new Venda();
-        itens.forEach(item -> copia.itens.add(
-                new ItemVenda(item.getProduto(), item.getQuantidade(), item.getPrecoUnitario())));
+        itens.forEach(item -> copia.itens.add(new ItemVenda(item.getProduto(), item.getQuantidade(),
+                item.getPrecoUnitario(), item.getCustoUnitario().orElse(null))));
         copia.cliente = this.cliente;
         return copia;
     }
@@ -248,13 +248,26 @@ public class Venda {
      * @param produto        produto vendido
      * @param quantidade     quantidade vendida
      * @param precoUnitario  preço cobrado (pode diferir do preço atual do produto)
+     * @param custoUnitario  custo do produto no dia da venda, ou {@code null} em vendas antigas
      */
-    public record ItemRegistrado(Produto produto, BigDecimal quantidade, BigDecimal precoUnitario) {
-        /** Exige os três dados. */
+    public record ItemRegistrado(Produto produto, BigDecimal quantidade, BigDecimal precoUnitario,
+                                 BigDecimal custoUnitario) {
+        /** Exige produto, quantidade e preço; o custo é opcional. */
         public ItemRegistrado {
             Objects.requireNonNull(produto, "produto");
             Objects.requireNonNull(quantidade, "quantidade");
             Objects.requireNonNull(precoUnitario, "precoUnitario");
+        }
+
+        /**
+         * Item sem custo registrado (vendas anteriores à gravação do custo).
+         *
+         * @param produto       produto vendido
+         * @param quantidade    quantidade vendida
+         * @param precoUnitario preço cobrado
+         */
+        public ItemRegistrado(Produto produto, BigDecimal quantidade, BigDecimal precoUnitario) {
+            this(produto, quantidade, precoUnitario, null);
         }
     }
 
@@ -283,7 +296,7 @@ public class Venda {
         }
         Venda venda = new Venda();
         itens.forEach(item -> venda.itens.add(
-                new ItemVenda(item.produto(), item.quantidade(), item.precoUnitario())));
+                new ItemVenda(item.produto(), item.quantidade(), item.precoUnitario(), item.custoUnitario())));
         venda.cliente = cliente;
         venda.formaPagamento = forma;
         venda.dataHora = dataHora;

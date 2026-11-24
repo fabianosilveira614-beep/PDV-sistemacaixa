@@ -28,15 +28,16 @@ public class AutenticarOperador {
      * @param login login digitado (sem diferenciar maiúsculas)
      * @param senha senha digitada
      * @return o operador autenticado
-     * @throws CredenciaisInvalidasException se o login não existir ou a senha não conferir
-     *                                       (mesma mensagem nos dois casos, de propósito)
+     * @throws CredenciaisInvalidasException se o login não existir, a senha não conferir ou o
+     *                                       operador estiver desativado (mesma mensagem nos três
+     *                                       casos, de propósito: não revela quais logins existem)
      */
     public Operador executar(String login, String senha) throws CredenciaisInvalidasException {
         if (login == null || login.isBlank() || senha == null || senha.isEmpty()) {
             throw new CredenciaisInvalidasException();
         }
         Operador operador = operadores.buscarPorLogin(login.trim()).orElseThrow(CredenciaisInvalidasException::new);
-        if (!hashSenha.confere(senha, operador.getSenhaHash())) {
+        if (!operador.estaAtivo() || !hashSenha.confere(senha, operador.getSenhaHash())) {
             throw new CredenciaisInvalidasException();
         }
         return operador;

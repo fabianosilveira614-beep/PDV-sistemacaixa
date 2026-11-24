@@ -2,7 +2,6 @@ package br.com.ferragem.aplicacao.casodeuso;
 
 import br.com.ferragem.aplicacao.porta.HashSenha;
 import br.com.ferragem.aplicacao.porta.OperadorRepository;
-import br.com.ferragem.dominio.excecao.OperacaoNaoAutorizadaException;
 import br.com.ferragem.dominio.excecao.RegistroDuplicadoException;
 import br.com.ferragem.dominio.excecao.RegraNegocioException;
 import br.com.ferragem.dominio.excecao.SenhaFracaException;
@@ -10,6 +9,7 @@ import br.com.ferragem.dominio.modelo.caixa.Operador;
 import br.com.ferragem.dominio.modelo.caixa.PerfilOperador;
 
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Cadastra um novo operador. Só um administrador pode cadastrar. A senha é guardada como hash.
@@ -49,16 +49,19 @@ public class CadastrarOperador {
      * @throws RegraNegocioException quem cadastra não é administrador, dado vazio, senha curta ou login em uso
      */
     public Operador executar(Operador quem, Comando comando) throws RegraNegocioException {
-        Objects.requireNonNull(quem, "quem");
-        if (!quem.ehAdministrador()) {
-            throw new OperacaoNaoAutorizadaException("Só um administrador pode cadastrar operadores.");
-        }
+        Administracao.exigirAdministrador(quem, "cadastrar operadores");
         if (comando.senha() == null || comando.senha().length() < TAMANHO_MINIMO_SENHA) {
             throw new SenhaFracaException(TAMANHO_MINIMO_SENHA);
         }
         String login = comando.login() == null ? "" : comando.login().trim();
-        if (!login.isEmpty() && operadores.buscarPorLogin(login).isPresent()) {
-            throw new RegistroDuplicadoException("O login \"" + login + "\" já está em uso.");
+        if (!login.isEmpty()) {
+            Optional<Operador> dono = operadores.buscarPorLogin(login);
+            if (dono.isPresent()) {
+                throw new RegistroDuplicadoException(dono.get().estaAtivo()
+                        ? "O login \"" + login + "\" já está em uso."
+                        : "O login \"" + login + "\" é de \"" + dono.get().getNome()
+                        + "\", que está desativado. Reative-o em vez de cadastrar de novo.");
+            }
         }
         // o hash é gerado por último: é lento de propósito, não vale gastá-lo num cadastro recusado
         Operador novo = new Operador(comando.nome(), login, hashSenha.gerar(comando.senha()), comando.perfil());

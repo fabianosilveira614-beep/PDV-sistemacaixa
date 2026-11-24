@@ -5,13 +5,15 @@ import br.com.ferragem.dominio.modelo.caixa.Operador;
 
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Operadores do caixa no PostgreSQL (tabela {@code operador}). Só operadores ativos conseguem
- * ser encontrados pelo login, portanto só eles conseguem entrar no sistema.
+ * Operadores do caixa no PostgreSQL (tabela {@code operador}). As buscas trazem também os
+ * desativados: barrar o login deles é regra do caso de uso {@code AutenticarOperador}, não do SQL.
  */
 public class OperadorRepositoryJdbc implements OperadorRepository {
 
@@ -26,10 +28,34 @@ public class OperadorRepositoryJdbc implements OperadorRepository {
 
     @Override
     public Optional<Operador> buscarPorLogin(String login) {
-        String sql = "SELECT " + Mapeadores.COLUNAS_OPERADOR + " FROM operador o WHERE o.login = ? AND o.ativo";
+        return buscarUm("o.login = ?", login.trim().toLowerCase(Locale.ROOT));
+    }
+
+    @Override
+    public Optional<Operador> buscarPorId(long id) {
+        return buscarUm("o.id = ?", id);
+    }
+
+    @Override
+    public List<Operador> listar() {
+        String sql = "SELECT " + Mapeadores.COLUNAS_OPERADOR + " FROM operador o ORDER BY o.nome";
+        return contexto.usar(conexao -> {
+            try (PreparedStatement comando = conexao.prepareStatement(sql);
+                 ResultSet linha = comando.executeQuery()) {
+                List<Operador> todos = new ArrayList<>();
+                while (linha.next()) {
+                    todos.add(Mapeadores.operador(linha));
+                }
+                return todos;
+            }
+        });
+    }
+
+    private Optional<Operador> buscarUm(String filtro, Object valor) {
+        String sql = "SELECT " + Mapeadores.COLUNAS_OPERADOR + " FROM operador o WHERE " + filtro;
         return contexto.usar(conexao -> {
             try (PreparedStatement comando = conexao.prepareStatement(sql)) {
-                comando.setString(1, login.trim().toLowerCase(Locale.ROOT));
+                comando.setObject(1, valor);
                 try (ResultSet linha = comando.executeQuery()) {
                     return linha.next() ? Optional.of(Mapeadores.operador(linha)) : Optional.empty();
                 }
@@ -42,15 +68,17 @@ public class OperadorRepositoryJdbc implements OperadorRepository {
         contexto.usar(conexao -> {
             if (operador.getId().isEmpty()) {
                 try (PreparedStatement comando = conexao.prepareStatement(
-                        "INSERT INTO operador (nome, login, senha_hash, perfil, trocar_senha) VALUES (?, ?, ?, ?, ?) RETURNING id")) {
+                        "INSERT INTO operador (nome, login, senha_hash, perfil, trocar_senha, ativo) "
+                                + "VALUES (?, ?, ?, ?, ?, ?) RETURNING id")) {
                     preencher(comando, operador);
                     operador.atribuirId(Mapeadores.idGerado(comando));
                 }
             } else {
                 try (PreparedStatement comando = conexao.prepareStatement(
-                        "UPDATE operador SET nome = ?, login = ?, senha_hash = ?, perfil = ?, trocar_senha = ? WHERE id = ?")) {
+                        "UPDATE operador SET nome = ?, login = ?, senha_hash = ?, perfil = ?, trocar_senha = ?, "
+                                + "ativo = ? WHERE id = ?")) {
                     preencher(comando, operador);
-                    comando.setLong(6, operador.getId().orElseThrow());
+                    comando.setLong(7, operador.getId().orElseThrow());
                     comando.executeUpdate();
                 }
             }
@@ -64,5 +92,6 @@ public class OperadorRepositoryJdbc implements OperadorRepository {
         comando.setString(3, operador.getSenhaHash());
         comando.setString(4, operador.getPerfil().name());
         comando.setBoolean(5, operador.deveTrocarSenha());
+        comando.setBoolean(6, operador.estaAtivo());
     }
 }

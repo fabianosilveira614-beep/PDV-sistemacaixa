@@ -15,6 +15,7 @@ import javafx.scene.control.PasswordField;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.layout.Region;
 
 /**
  * Troca da própria senha. Quando é obrigatória (primeiro acesso), não há botão de cancelar nem
@@ -73,7 +74,7 @@ public class TelaTrocaSenha {
                 .campo("_Repita a nova", confirmacao);
         cartao = new VBox(16, titulo, explicacao, formulario, botoes, mensagem);
         cartao.getStyleClass().add("cartao");
-        cartao.setMaxWidth(440);
+        cartao.setMaxSize(440, Region.USE_PREF_SIZE);
         Platform.runLater(atual::requestFocus);
     }
 

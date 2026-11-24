@@ -13,17 +13,23 @@
  */
 
 .root {
-    -cor-primaria: #1F4E3D;
+    -cor-primaria: #4cc9f8;
     -cor-primaria-clara: #E6EFEB;
-    -cor-destaque: #B5501A;
-    -cor-destaque-escura: #94410F;
-    -cor-fundo: #F6F7F5;
+    -cor-destaque: #0ad819;
+    -cor-destaque-escura: #06ac12;
+    -cor-fundo: #dfdfdf;
     -cor-superficie: #FFFFFF;
-    -cor-borda: #D5D9D6;
+    -cor-titulo-app: #191818;
+    -cor-borda: #4cc9f8;
     -cor-sucesso: #2E7D32;
+    -cor-situacao-caixa: #363736;
     -cor-erro: #B3261E;
     -cor-texto: #1E1E1E;
     -cor-texto-secundario: #4A4F4C;
+    -cor-area-ativa-conteudo: #000000;
+    -fx-control-inner-background-alt: #EEF6FB;
+    -cor-texto-selecionado: #000000;
+
 
     -fx-background-color: -cor-fundo;
     -fx-font-family: "Segoe UI", "Inter", sans-serif;
@@ -40,7 +46,7 @@
 }
 
 .titulo-app {
-    -fx-text-fill: white;
+    -fx-text-fill: -cor-titulo-app;
     -fx-font-size: 20px;
     -fx-font-weight: bold;
 }
@@ -60,14 +66,20 @@
     -fx-background-color: rgba(255, 255, 255, 0.15);
 }
 
-/* área em que o operador está: o laranja de destaque (branco sobre ele: 5,09:1) */
+/* área em que o operador está: fundo de destaque, texto e ícone escuros */
 .botao-area.area-ativa {
     -fx-background-color: -cor-destaque;
+    -fx-text-fill: -cor-area-ativa-conteudo;
 }
 
 .botao-area .ikonli-font-icon {
     -fx-icon-color: white;
     -fx-icon-size: 24px;
+}
+
+/* ícone da área ativa: precisa de regra própria, porque ícone usa -fx-icon-color e não -fx-text-fill */
+.botao-area.area-ativa .ikonli-font-icon {
+    -fx-icon-color: -cor-area-ativa-conteudo;
 }
 
 /* menu do usuário: discreto, à direita (trocar senha e sair ficam aqui dentro) */
@@ -99,7 +111,7 @@
 
 /* verde-escuro, e não o verde de sucesso: sobre a faixa clara o de sucesso dá 4,37:1 e reprova */
 .caixa-aberto {
-    -fx-text-fill: -cor-primaria;
+    -fx-text-fill: -cor-situacao-caixa;
     -fx-font-weight: bold;
 }
 
@@ -216,7 +228,7 @@
 }
 
 .tabela-pdv .table-row-cell:selected .table-cell {
-    -fx-text-fill: white;
+    -fx-text-fill: -cor-texto-selecionado;
 }
 
 .painel-total {
@@ -291,7 +303,7 @@
 }
 
 .table-row-cell:selected .table-cell {
-    -fx-text-fill: white;
+    -fx-text-fill: -cor-texto-selecionado;
 }
 
 /* ------------------------------------------------------------ clientes e fiado */
@@ -346,4 +358,24 @@
 .tab-pane > .tab-content-area {
     -fx-background-color: -cor-superficie;
     -fx-padding: 0 12 12 12;
+}
+
+/* ------------------------------------------------------------ relatórios */
+
+/* cartões de número do relatório de vendas: menores que o .cartao das telas de entrada */
+.cartao-numero {
+    -fx-background-color: -cor-superficie;
+    -fx-border-color: -cor-borda;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-padding: 8 14 8 14;
+}
+
+.table-row-cell:odd {
+    -fx-background: -cor-superficie;
+}
+
+.list-cell:filled:selected {
+    -fx-background-color: -cor-primaria;
+    -fx-text-fill: -cor-texto-selecionado;
 }

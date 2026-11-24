@@ -75,8 +75,9 @@ public final class DialogoBusca<T> {
         dialogo.setTitle(titulo);
         dialogo.setHeaderText(instrucao);
         Tema.aplicar(dialogo.getDialogPane());
-        ButtonType escolher = new ButtonType("Escolher", ButtonBar.ButtonData.OK_DONE);
-        dialogo.getDialogPane().getButtonTypes().addAll(escolher, ButtonType.CANCEL);
+        ButtonType escolher = new ButtonType("Escolher (ENTER)", ButtonBar.ButtonData.OK_DONE);
+        ButtonType cancelar = new ButtonType("Cancelar (ESC)", ButtonBar.ButtonData.CANCEL_CLOSE);
+        dialogo.getDialogPane().getButtonTypes().addAll(escolher, cancelar);
         dialogo.getDialogPane().lookupButton(escolher).disableProperty()
                 .bind(resultados.getSelectionModel().selectedItemProperty().isNull());
 
@@ -107,6 +108,19 @@ public final class DialogoBusca<T> {
         resultados.addEventFilter(KeyEvent.KEY_PRESSED, evento -> {
             if (evento.getCode() == KeyCode.UP && resultados.getSelectionModel().getSelectedIndex() <= 0) {
                 termo.requestFocus();
+                evento.consume();
+            }
+        });
+        // Enter e Esc valem na janela toda: a lista consome essas teclas para editar itens
+        dialogo.getDialogPane().addEventFilter(KeyEvent.KEY_PRESSED, evento -> {
+            if (evento.getCode() == KeyCode.ESCAPE) {
+                dialogo.setResult(null);
+                dialogo.close();
+                evento.consume();
+            } else if (evento.getCode() == KeyCode.ENTER && resultados.isFocused()
+                    && resultados.getSelectionModel().getSelectedItem() != null) {
+                dialogo.setResult(resultados.getSelectionModel().getSelectedItem());
+                dialogo.close();
                 evento.consume();
             }
         });

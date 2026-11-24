@@ -28,6 +28,7 @@ final class PainelItensVenda {
         tabela.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         tabela.setFocusTraversable(false);
         tabela.setPrefHeight(170);
+        tabela.setMinHeight(100); // não deixa a tabela ser espremida a ponto de sumir
         tabela.getColumns().add(coluna("Produto", 260, i -> i.getProduto().getNome()));
         tabela.getColumns().add(coluna("Qtd.", 100,
                 i -> Formatos.quantidade(i.getQuantidade(), i.getProduto().getUnidade())));
@@ -43,9 +44,7 @@ final class PainelItensVenda {
     }
 
     void mostrar(Venda venda) {
-        titulo.setText("Itens da venda nº " + venda.getId().map(String::valueOf).orElse("?")
-                + venda.getDataHora().map(d -> " — " + Formatos.dataHora(d)).orElse("")
-                + "  ·  total " + Formatos.moeda(venda.calcularTotal()));
+        titulo.setText("Itens (" + venda.getItens().size() + ")");
         tabela.getItems().setAll(venda.getItens());
     }
 

@@ -22,6 +22,8 @@ public enum AtalhoPdv {
     PRECO_ITEM(KeyCode.F5, "F5", "Preço", "Altera o preço do item selecionado (desconto)"),
     QUANTIDADE_ITEM(KeyCode.F6, "F6", "Qtd. item", "Altera a quantidade do item selecionado"),
     REMOVER_ITEM(KeyCode.DELETE, "Del", "Remover", "Remove o item selecionado (com o campo de código vazio)"),
+    ORCAMENTO(KeyCode.F7, "F7", "Orçamento",
+            "Com itens: salva e imprime o orçamento (não mexe em estoque nem caixa). Carrinho vazio: orçamentos guardados"),
     CANCELAR_VENDA(KeyCode.F8, "F8", "Cancelar", "Cancela a venda inteira"),
     PAGAR(KeyCode.F9, "F9", "Pagamento", "Vai para o pagamento"),
     GAVETA(KeyCode.F10, "F10", "Gaveta", "Dinheiro na gaveta, suprimento, sangria e fechamento do caixa");

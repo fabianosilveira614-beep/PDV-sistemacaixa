@@ -59,7 +59,8 @@ public class VendaRepositoryJdbc implements RegistroVendas, HistoricoVendas {
     @Override
     public List<Venda> buscarPorCliente(Cliente cliente, LocalDate inicio, LocalDate fim) {
         long clienteId = idDe(cliente);
-        String sql = "SELECT v.id AS v_id, v.data_hora, v.forma_pagamento, i.quantidade, i.preco_unitario, "
+        String sql = "SELECT v.id AS v_id, v.data_hora, v.forma_pagamento, "
+                + "i.quantidade, i.preco_unitario, i.custo_unitario, "
                 + Mapeadores.COLUNAS_PRODUTO + """
                  FROM venda v
                  JOIN item_venda i ON i.venda_id = v.id
@@ -78,7 +79,8 @@ public class VendaRepositoryJdbc implements RegistroVendas, HistoricoVendas {
                         venda.dataHora = linha.getObject("data_hora", LocalDateTime.class);
                         venda.forma = FormaPagamento.valueOf(linha.getString("forma_pagamento"));
                         venda.itens.add(new Venda.ItemRegistrado(Mapeadores.produto(linha),
-                                linha.getBigDecimal("quantidade"), linha.getBigDecimal("preco_unitario")));
+                                linha.getBigDecimal("quantidade"), linha.getBigDecimal("preco_unitario"),
+                                linha.getBigDecimal("custo_unitario")));
                     }
                 }
             }
@@ -106,7 +108,8 @@ public class VendaRepositoryJdbc implements RegistroVendas, HistoricoVendas {
 
     @Override
     public Optional<Venda> buscarPorId(long vendaId) {
-        String sql = "SELECT v.id AS v_id, v.data_hora, v.forma_pagamento, i.quantidade, i.preco_unitario, "
+        String sql = "SELECT v.id AS v_id, v.data_hora, v.forma_pagamento, "
+                + "i.quantidade, i.preco_unitario, i.custo_unitario, "
                 + Mapeadores.COLUNAS_PRODUTO + ", " + Mapeadores.COLUNAS_CLIENTE + """
                  FROM venda v
                  JOIN item_venda i ON i.venda_id = v.id
@@ -128,12 +131,54 @@ public class VendaRepositoryJdbc implements RegistroVendas, HistoricoVendas {
                             cliente = linha.getObject("c_id") == null ? null : Mapeadores.cliente(linha);
                         }
                         dados.itens.add(new Venda.ItemRegistrado(Mapeadores.produto(linha),
-                                linha.getBigDecimal("quantidade"), linha.getBigDecimal("preco_unitario")));
+                                linha.getBigDecimal("quantidade"), linha.getBigDecimal("preco_unitario"),
+                                linha.getBigDecimal("custo_unitario")));
                     }
                 }
             }
             return dados == null ? Optional.<Venda>empty()
                     : Optional.of(Venda.restaurar(vendaId, cliente, dados.forma, dados.dataHora, dados.itens));
+        });
+    }
+
+    @Override
+    public List<VendaDoPeriodo> buscarPorPeriodo(LocalDate inicio, LocalDate fim) {
+        String sql = "SELECT v.id AS v_id, v.data_hora, v.forma_pagamento, o.nome AS operador_nome, "
+                + "i.quantidade, i.preco_unitario, i.custo_unitario, "
+                + Mapeadores.COLUNAS_PRODUTO + ", " + Mapeadores.COLUNAS_CLIENTE + """
+                 FROM venda v
+                 JOIN operador o ON o.id = v.operador_id
+                 JOIN item_venda i ON i.venda_id = v.id
+                 JOIN produto p ON p.id = i.produto_id
+                 LEFT JOIN cliente c ON c.id = v.cliente_id
+                WHERE v.data_hora >= ? AND v.data_hora < ?
+                ORDER BY v.data_hora DESC, v.id DESC, i.id""";
+        return contexto.usar(conexao -> {
+            Map<Long, Linha> vendas = new LinkedHashMap<>();
+            try (PreparedStatement comando = conexao.prepareStatement(sql)) {
+                comando.setObject(1, inicio.atStartOfDay());
+                comando.setObject(2, fim.plusDays(1).atStartOfDay());
+                try (ResultSet linha = comando.executeQuery()) {
+                    while (linha.next()) {
+                        Linha venda = vendas.get(linha.getLong("v_id"));
+                        if (venda == null) {
+                            venda = new Linha();
+                            venda.dataHora = linha.getObject("data_hora", LocalDateTime.class);
+                            venda.forma = FormaPagamento.valueOf(linha.getString("forma_pagamento"));
+                            venda.operador = linha.getString("operador_nome");
+                            venda.cliente = linha.getObject("c_id") == null ? null : Mapeadores.cliente(linha);
+                            vendas.put(linha.getLong("v_id"), venda);
+                        }
+                        venda.itens.add(new Venda.ItemRegistrado(Mapeadores.produto(linha),
+                                linha.getBigDecimal("quantidade"), linha.getBigDecimal("preco_unitario"),
+                                linha.getBigDecimal("custo_unitario")));
+                    }
+                }
+            }
+            List<VendaDoPeriodo> resultado = new ArrayList<>();
+            vendas.forEach((id, dados) -> resultado.add(new VendaDoPeriodo(
+                    Venda.restaurar(id, dados.cliente, dados.forma, dados.dataHora, dados.itens), dados.operador)));
+            return resultado;
         });
     }
 
@@ -156,6 +201,8 @@ public class VendaRepositoryJdbc implements RegistroVendas, HistoricoVendas {
     private static final class Linha {
         private LocalDateTime dataHora;
         private FormaPagamento forma;
+        private Cliente cliente;
+        private String operador;
         private final List<Venda.ItemRegistrado> itens = new ArrayList<>();
     }
 
@@ -184,7 +231,8 @@ public class VendaRepositoryJdbc implements RegistroVendas, HistoricoVendas {
     }
 
     private static void inserirItens(Connection conexao, Venda venda) throws SQLException {
-        String sql = "INSERT INTO item_venda (venda_id, produto_id, quantidade, preco_unitario) VALUES (?, ?, ?, ?)";
+        String sql = "INSERT INTO item_venda (venda_id, produto_id, quantidade, preco_unitario, custo_unitario) "
+                + "VALUES (?, ?, ?, ?, ?)";
         try (PreparedStatement comando = conexao.prepareStatement(sql)) {
             for (ItemVenda item : venda.getItens()) {
                 comando.setLong(1, venda.getId().orElseThrow());
@@ -192,6 +240,7 @@ public class VendaRepositoryJdbc implements RegistroVendas, HistoricoVendas {
                         new IllegalStateException("Produto \"" + item.getProduto().getNome() + "\" sem id.")));
                 comando.setBigDecimal(3, item.getQuantidade());
                 comando.setBigDecimal(4, item.getPrecoUnitario());
+                Mapeadores.definirOuNulo(comando, 5, item.getCustoUnitario().orElse(null), Types.NUMERIC);
                 comando.addBatch();
             }
             comando.executeBatch();
