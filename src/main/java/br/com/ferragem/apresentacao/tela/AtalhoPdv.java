@@ -7,15 +7,15 @@ import java.util.Optional;
 
 /**
  * Atalhos de teclado do PDV. A tecla, o nome mostrado na legenda do rodapé e a ação ficam
- * amarrados aqui: <b>se amanhã o pagamento passar para F10</b>, muda só a constante
- * {@link #PAGAR}, e a legenda e a ajuda (F1) acompanham sozinhas.
+ * amarrados aqui: <b>se amanhã o pagamento passar para F12</b>, muda só a constante
+ * {@link #PAGAR}, e a legenda e a ajuda (F10) acompanham sozinhas.
  *
  * <p>Teclas que só valem dentro de diálogos (1–5 no pagamento, Enter, Esc) não estão aqui
  * porque não são atalhos da tela do carrinho.</p>
  */
 public enum AtalhoPdv {
 
-    AJUDA(KeyCode.F1, "F1", "Ajuda", "Mostra esta lista de atalhos"),
+    GAVETA(KeyCode.F1, "F1", "Gaveta", "Dinheiro na gaveta, suprimento, sangria e fechamento do caixa"),
     QUANTIDADE_PROXIMA(KeyCode.F2, "F2", "Qtd.", "Informa a quantidade antes de passar o próximo produto"),
     BUSCAR_PRODUTO(KeyCode.F3, "F3", "Buscar", "Busca produto pelo nome ou pelo código"),
     CLIENTE(KeyCode.F4, "F4", "Cliente", "Identifica o cliente (obrigatório para fiado)"),
@@ -26,7 +26,7 @@ public enum AtalhoPdv {
             "Com itens: salva e imprime o orçamento (não mexe em estoque nem caixa). Carrinho vazio: orçamentos guardados"),
     CANCELAR_VENDA(KeyCode.F8, "F8", "Cancelar", "Cancela a venda inteira"),
     PAGAR(KeyCode.F9, "F9", "Pagamento", "Vai para o pagamento"),
-    GAVETA(KeyCode.F10, "F10", "Gaveta", "Dinheiro na gaveta, suprimento, sangria e fechamento do caixa");
+    AJUDA(KeyCode.F10, "F10", "Ajuda", "Mostra esta lista de atalhos");
 
     private final KeyCode tecla;
     private final String rotuloTecla;
@@ -58,7 +58,7 @@ public enum AtalhoPdv {
         return nomeCurto;
     }
 
-    /** @return explicação para a ajuda (F1) */
+    /** @return explicação para a ajuda (F10) */
     public String getDescricao() {
         return descricao;
     }

@@ -23,7 +23,7 @@ import javafx.stage.Window;
 final class ImpressaoOrcamento {
 
     /** Nome no topo do cupom. */
-    static final String NOME_LOJA = "Caixa Ferragem";
+    static final String NOME_LOJA = "Nova Ferragem";
 
     /** Largura do cupom em pontos (cerca de 10 cm). */
     private static final double LARGURA = 290;

@@ -123,7 +123,7 @@ public final class Navegador {
 
     /**
      * Caixa: o PDV. Com o caixa fechado, a própria tela pede o troco e abre o caixa; a gaveta
-     * (suprimento, sangria, fechamento) fica no F10. O carrinho em andamento é mantido entre idas
+     * (suprimento, sangria, fechamento) fica no F1. O carrinho em andamento é mantido entre idas
      * e vindas a outras áreas.
      */
     public void irParaCaixa() {

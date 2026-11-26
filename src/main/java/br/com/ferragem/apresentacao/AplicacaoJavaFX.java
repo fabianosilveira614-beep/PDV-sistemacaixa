@@ -24,7 +24,7 @@ import javafx.stage.Stage;
  */
 public class AplicacaoJavaFX extends Application {
 
-    private static final String TITULO = "Caixa Ferragem";
+    private static final String TITULO = "Nova Ferragem";
     private static final System.Logger LOG = System.getLogger(AplicacaoJavaFX.class.getName());
 
     private ConfiguracaoAplicacao configuracao;

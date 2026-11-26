@@ -56,7 +56,7 @@ import java.util.function.Function;
  * "digita" o código e envia Enter). Os atalhos estão em {@link AtalhoPdv}.</p>
  *
  * <p><b>Caixa fechado:</b> a própria tela pede o troco e abre o caixa; não existe "ir para outra
- * tela abrir o caixa". Suprimento, sangria e fechamento ficam na gaveta (F10).</p>
+ * tela abrir o caixa". Suprimento, sangria e fechamento ficam na gaveta (F1).</p>
  */
 public final class TelaPdv {
 
@@ -196,7 +196,7 @@ public final class TelaPdv {
         });
 
         // a gaveta também tem botão: fechar o caixa não pode depender de decorar uma tecla
-        Button gaveta = new Button("Gaveta (F10)");
+        Button gaveta = new Button("Gaveta (F1)");
         gaveta.getStyleClass().add("botao-secundario");
         gaveta.setMaxWidth(Double.MAX_VALUE);
         gaveta.setFocusTraversable(false);
@@ -234,7 +234,7 @@ public final class TelaPdv {
     private VBox aberturaDoCaixa() {
         Label titulo = new Label("Caixa fechado");
         titulo.getStyleClass().add("titulo-secao");
-        Label texto = new Label("Conte o dinheiro de troco que está na gaveta e abra o caixa para começar a vender.");
+        Label texto = new Label("Informe o dinheiro que está na gaveta e abra o caixa para começar a vender.");
         texto.setWrapText(true);
         TextField troco = new TextField();
         troco.setPromptText("0,00");

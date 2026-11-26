@@ -26,7 +26,7 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Gaveta do caixa (F10 no PDV): quanto deve haver em dinheiro, o recebido por forma de pagamento
+ * Gaveta do caixa (F1 no PDV): quanto deve haver em dinheiro, o recebido por forma de pagamento
  * e as operações de suprimento, sangria e fechamento.
  *
  * <p>Nenhum cálculo é feito aqui: o saldo vem de {@link SessaoCaixa#calcularSaldoEsperado()} e a
