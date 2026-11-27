@@ -41,7 +41,7 @@ Trabalho 2 da disciplina de Programação Orientada a Objetos (Java), orientado 
 
 ### 1. Banco de dados
 
-**Opção A: Docker (recomendado)**
+**Docker **
 
 ```bash
 docker compose up -d
@@ -49,10 +49,10 @@ docker compose up -d
 
 Isso cria um PostgreSQL 16 com banco `caixa`, usuário `caixa` e senha `caixa`, na porta 5432. Os dados ficam no volume `dados-caixa` e mantêm-se mesmo após reinícios.
 
-**Opção B: PostgreSQL instalado na máquina**
+**PostgreSQL**
 
 1. Instale o PostgreSQL 16 ou superior: <https://www.postgresql.org/download/>
-2. No pgAdmin (Query Tool), rode **um comando de cada vez**:
+2. No pgAdmin (Query Tool), rode um comando de cada vez:
 
    ```sql
    CREATE USER caixa WITH PASSWORD 'caixa';
@@ -73,11 +73,11 @@ Se for usar outro usuário, senha ou porta, ajuste o arquivo `src/main/resources
 mvn javafx:run
 ```
 
-No IntelliJ: abra a pasta do projeto (ele reconhece o `pom.xml`) e execute a classe `br.com.ferragem.Main`.
+No IntelliJ: abra a pasta do projeto (o programa reconhece o `pom.xml`) e execute a classe `br.com.ferragem.Main`.
 
-As tabelas são criadas automaticamente. Na inicialização, o Flyway aplica os "scripts" de `src/main/resources/db/migration/` que ainda não rodaram, então não é preciso executar SQL manualmente.
+As tabelas são criadas automaticamente. Na inicialização, o Flyway aplica os "scripts" de `src/main/resources/db/migration/` que ainda não rodaram, então não precisa executar SQL manualmente.
 
-**Primeiro acesso:** entre com o "login" `admin` e a senha `admin123`, criados pela migração V2. Como essa senha é pública, o sistema obriga a trocá-la antes de liberar as outras telas. O mesmo vale para todo operador cadastrado pelo administrador.
+**Primeiro acesso:** entre com o "login" `admin` e a senha `admin123`, criados pela migração V2. A senha é pública, o sistema obriga a trocar antes de liberar as outras telas.
 
 ### 3. Rodar os testes
 
@@ -87,8 +87,8 @@ mvn test
 
 São dois tipos de teste:
 
-- **Testes de regra** (domínio e casos de uso): usam repositórios em memória e não precisam de banco.
-- **Testes de integração** (`infraestrutura.persistencia.jdbc`): rodam contra um PostgreSQL, num banco separado (`caixa_teste`) que é apagado a cada teste.
+- **Testes de regra** (domínio e casos de uso): usam repositórios em memória e não precisam do banco.
+- **Testes de integração** (`infraestrutura.persistencia.jdbc`): rodam com um PostgreSQL, num banco separado (`caixa_teste`) que é apagado após cada teste.
 
 Para criar o banco de teste, rode no pgAdmin:
 
