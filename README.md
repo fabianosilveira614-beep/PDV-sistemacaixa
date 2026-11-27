@@ -52,6 +52,9 @@ Isso cria um PostgreSQL 16 com banco `caixa`, usuário `caixa` e senha `caixa`, 
 **PostgreSQL**
 
 1. Instale o PostgreSQL 16 ou superior: <https://www.postgresql.org/download/>
+2. Crie um Database com o nome exatamente igual ao de config.properties:
+   ![pgAdmin conectado](docs/img/CreateDB.png)
+   ![config.properties](docs/img/SenhaDB.png)
 2. No pgAdmin (Query Tool), rode um comando de cada vez:
 
    ```sql
