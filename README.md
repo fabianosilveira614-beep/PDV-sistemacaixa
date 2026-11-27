@@ -41,7 +41,7 @@ Trabalho 2 da disciplina de Programação Orientada a Objetos (Java), orientado 
 
 ### 1. Banco de dados
 
-**Opção A: Docker (recomendado)**
+**Docker **
 
 ```bash
 docker compose up -d
@@ -49,7 +49,7 @@ docker compose up -d
 
 Isso cria um PostgreSQL 16 com banco `caixa`, usuário `caixa` e senha `caixa`, na porta 5432. Os dados ficam no volume `dados-caixa` e mantêm-se mesmo após reinícios.
 
-**Opção B: PostgreSQL instalado na máquina**
+**PostgreSQL**
 
 1. Instale o PostgreSQL 16 ou superior: <https://www.postgresql.org/download/>
 2. No pgAdmin (Query Tool), rode **um comando de cada vez**:
