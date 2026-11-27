@@ -1,12 +1,7 @@
 -- =====================================================================
--- DADOS DE EXEMPLO para testar e apresentar o PDV.
---
--- NÃO é uma migração do Flyway (de propósito): migração roda em todo
--- banco, inclusive o da loja de verdade, e produto de demonstração não
--- pode aparecer lá sozinho. Este script só roda quando alguém executa.
---
--- Como usar: pgAdmin -> banco "caixa" -> Query Tool -> abrir este arquivo
--- -> F5 (pode rodar inteiro). Rodar de novo não duplica nada.
+-- Exemplo de dados com produtos e cliente ja cadastrados
+-- Como usar: pgAdmin >> banco "caixa" >> Query Tool >> abrir este arquivo
+-- >> F5
 -- =====================================================================
 
 BEGIN;
@@ -30,14 +25,14 @@ SELECT p.id, 'ENTRADA_COMPRA', p.quantidade_estoque, 'estoque inicial (dados de 
    AND p.quantidade_estoque > 0
    AND NOT EXISTS (SELECT 1 FROM movimento_estoque m WHERE m.produto_id = p.id);
 
--- estoque mínimo (exige a migração V4: abra o programa uma vez antes de rodar este script).
--- O cimento fica abaixo do mínimo de propósito, para aparecer em vermelho e no relatório.
+-- estoque mínimo, abrir programa antes de rodar script para migrar v4
+
 UPDATE produto SET estoque_minimo = 100 WHERE codigo = 'PAR-6MM' AND estoque_minimo IS NULL;
 UPDATE produto SET estoque_minimo = 5   WHERE codigo = 'CIM-50'  AND estoque_minimo IS NULL;
 UPDATE produto SET estoque_minimo = 10  WHERE codigo = 'PRE-1727' AND estoque_minimo IS NULL;
 UPDATE produto SET estoque_minimo = 20  WHERE codigo = 'COR-5MM' AND estoque_minimo IS NULL;
 
--- clientes para testar o fiado (CPF fictício, mas com dígitos verificadores válidos)
+
 INSERT INTO cliente (nome, cpf, telefone) VALUES ('José da Silva', '52998224725', '(11) 98888-0001')
 ON CONFLICT (cpf) DO NOTHING;
 

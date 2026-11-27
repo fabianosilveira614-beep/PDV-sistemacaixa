@@ -7,13 +7,11 @@ import br.com.ferragem.dominio.modelo.caixa.Operador;
 import java.util.Objects;
 
 /**
- * Regras comuns da administração de operadores, num lugar só: só administrador mexe em
- * operadores, e ninguém mexe no próprio acesso por esta via.
+ * Regras comuns da administração de operadores, só administrador mexe em
+ * operadores
  *
- * <p><b>Por que o sistema nunca fica sem administrador:</b> quem administra é sempre um
- * administrador ativo (senão não teria entrado nem passado por {@link #exigirAdministrador}). Se ele
- * não pode desativar nem rebaixar a si mesmo, sobra pelo menos ele. Não é preciso contar
- * administradores: a regra "não em si mesmo" já garante isso.</p>
+ * Sistema precisa de um admin ativo senão não passa por {@link #exigirAdministrador}). Se ele
+ * não pode desativar nem rebaixar a si mesmo, sobra somente admin.
  */
 final class Administracao {
 
@@ -22,7 +20,7 @@ final class Administracao {
 
     /**
      * @param quem operador logado
-     * @param acao o que ele tentou fazer, para a mensagem (ex.: "desativar operadores")
+     * @param acao o que ele tentou fazer, mensagem (ex.: "desativar operadores")
      * @throws OperacaoNaoAutorizadaException se não for administrador ativo
      */
     static void exigirAdministrador(Operador quem, String acao) throws OperacaoNaoAutorizadaException {
@@ -36,7 +34,7 @@ final class Administracao {
      * @param quem  operador logado
      * @param alvo  operador que vai ser alterado
      * @param aviso o que dizer se for a mesma pessoa
-     * @throws OperacaoNaoAutorizadaException se o alvo for o próprio operador logado
+     * @throws OperacaoNaoAutorizadaException se o alvo for o próprio operador
      */
     static void exigirOutraPessoa(Operador quem, Operador alvo, String aviso) throws OperacaoNaoAutorizadaException {
         if (quem.ehOMesmoQue(alvo)) {
@@ -45,10 +43,10 @@ final class Administracao {
     }
 
     /**
-     * @param operadores repositório
-     * @param id         operador procurado
+     * @param operadores repositório do banco
+     * @param id         operador
      * @return o operador
-     * @throws IllegalArgumentException se não existir (a tela só oferece operadores da lista)
+     * @throws IllegalArgumentException se não existir
      */
     static Operador buscar(OperadorRepository operadores, long id) {
         return operadores.buscarPorId(id)

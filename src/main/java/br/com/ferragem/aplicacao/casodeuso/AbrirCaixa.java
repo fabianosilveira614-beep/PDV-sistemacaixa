@@ -12,8 +12,8 @@ import java.time.LocalDateTime;
 import java.util.Objects;
 
 /**
- * Abre o caixa do dia. Só pode haver um caixa aberto (RN08): esta classe confere antes, e o
- * banco reforça com um índice único (caso dois computadores tentem ao mesmo tempo).
+ * Abre o caixa do dia. Só pode haver um caixa aberto
+ * ess classe confere antes
  */
 public class AbrirCaixa {
 
@@ -21,8 +21,8 @@ public class AbrirCaixa {
     private final Clock relogio;
 
     /**
-     * @param caixas  sessões de caixa
-     * @param relogio fonte do "agora"
+     * @param caixas  sessões de caixa - sessões abertas
+     * @param relogio hora que foi aberto
      */
     public AbrirCaixa(CaixaRepository caixas, Clock relogio) {
         this.caixas = Objects.requireNonNull(caixas);
@@ -31,7 +31,7 @@ public class AbrirCaixa {
 
     /**
      * @param operador      quem está abrindo
-     * @param valorAbertura dinheiro na gaveta
+     * @param valorAbertura dinheiro no caixa
      * @return a sessão aberta
      * @throws CaixaJaAbertoException      se já houver um caixa aberto
      * @throws ValorCaixaInvalidoException se o valor for negativo ou tiver mais de 2 casas
